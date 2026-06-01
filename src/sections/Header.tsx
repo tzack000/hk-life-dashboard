@@ -1,4 +1,4 @@
-import { Building2 } from 'lucide-react';
+import { Building2, MapPin } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -6,10 +6,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { estateNames } from '@/data/estates';
+import { districts } from '@/data/estates';
 import { allLayouts } from '@/hooks/use-rental-data';
+import type { TxType, District } from '@/types/rental';
 
 interface HeaderProps {
+  txType: TxType;
+  setTxType: (t: TxType) => void;
+  selectedDistrict: District;
+  setSelectedDistrict: (d: District) => void;
+  districtEstateNames: string[];
   selectedMonth: { year: number; month: number };
   setSelectedMonth: (m: { year: number; month: number }) => void;
   selectedEstate: string;
@@ -22,6 +28,11 @@ interface HeaderProps {
 }
 
 export function Header({
+  txType,
+  setTxType,
+  selectedDistrict,
+  setSelectedDistrict,
+  districtEstateNames,
   selectedMonth,
   setSelectedMonth,
   selectedEstate,
@@ -37,7 +48,6 @@ export function Header({
   return (
     <header className="sticky top-0 z-50 border-b bg-white/80 backdrop-blur-md">
       <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
-        {/* 上：标题 + 数据来源 */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#1E40AF] to-[#3B82F6] text-white shadow-md sm:h-10 sm:w-10">
@@ -45,15 +55,14 @@ export function Header({
             </div>
             <div>
               <h1 className="text-base font-bold tracking-tight text-[#0F172A] sm:text-xl">
-                启德租房成交
+                香港生活看板
               </h1>
               <p className="hidden text-xs text-[#94A3B8] sm:block">
-                Kai Tak Rental Transactions
+                HK Living Dashboard
               </p>
             </div>
           </div>
 
-          {/* 右上角：数据来源信息 */}
           <div className="text-right text-[10px] leading-snug text-[#94A3B8] sm:text-xs">
             {dataSource === 'server' ? (
               <>
@@ -72,8 +81,48 @@ export function Header({
           </div>
         </div>
 
-        {/* 下：筛选器 - 移动端自动换行 */}
         <div className="mt-2 flex flex-wrap items-center gap-2 sm:mt-3 sm:gap-3">
+          {/* 租房/购房选项卡 */}
+          <div className="inline-flex h-8 items-center rounded-lg bg-[#F1F5F9] p-0.5 sm:h-9">
+            <button
+              onClick={() => setTxType('rental')}
+              className={`rounded-md px-3 py-1 text-xs font-medium transition-all sm:px-4 sm:text-sm ${
+                txType === 'rental'
+                  ? 'bg-white text-[#0F172A] shadow-sm'
+                  : 'text-[#94A3B8] hover:text-[#475569]'
+              }`}
+            >
+              租房
+            </button>
+            <button
+              onClick={() => setTxType('sale')}
+              className={`rounded-md px-3 py-1 text-xs font-medium transition-all sm:px-4 sm:text-sm ${
+                txType === 'sale'
+                  ? 'bg-white text-[#0F172A] shadow-sm'
+                  : 'text-[#94A3B8] hover:text-[#475569]'
+              }`}
+            >
+              购房
+            </button>
+          </div>
+
+          <div className="hidden h-5 w-px bg-[#E2E8F0] sm:block" />
+
+          {/* 区域选择 */}
+          <Select value={selectedDistrict} onValueChange={(v) => setSelectedDistrict(v as District)}>
+            <SelectTrigger className="h-8 w-[110px] text-xs sm:h-9 sm:w-[130px] sm:text-sm">
+              <MapPin className="mr-1 h-3.5 w-3.5 shrink-0 text-[#64748B]" />
+              <SelectValue placeholder="选择区域" />
+            </SelectTrigger>
+            <SelectContent>
+              {districts.map((d) => (
+                <SelectItem key={d} value={d}>{d}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <div className="hidden h-5 w-px bg-[#E2E8F0] sm:block" />
+
           <Select
             value={monthValue}
             onValueChange={(val) => {
@@ -99,10 +148,8 @@ export function Header({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部小区</SelectItem>
-              {estateNames.map((name) => (
-                <SelectItem key={name} value={name}>
-                  {name}
-                </SelectItem>
+              {districtEstateNames.map((name) => (
+                <SelectItem key={name} value={name}>{name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -114,9 +161,7 @@ export function Header({
             <SelectContent>
               <SelectItem value="all">全部房型</SelectItem>
               {allLayouts.map((layout) => (
-                <SelectItem key={layout} value={layout}>
-                  {layout}
-                </SelectItem>
+                <SelectItem key={layout} value={layout}>{layout}</SelectItem>
               ))}
             </SelectContent>
           </Select>

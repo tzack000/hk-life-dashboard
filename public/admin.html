@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>访问统计 - 启德租房成交</title>
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50">
+  <header class="border-b bg-white/80 backdrop-blur-md sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div>
+        <h1 class="text-lg font-bold text-slate-900">访问统计</h1>
+        <p class="text-xs text-slate-400">启德租房成交 · Analytics Dashboard</p>
+      </div>
+      <a href="/" class="text-sm text-blue-600 hover:underline">← 返回主站</a>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+    <!-- 概览卡片 -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="overview-cards">
+      <div class="bg-white rounded-xl border p-4 shadow-sm">
+        <p class="text-xs text-slate-400">今日 PV</p>
+        <p class="text-2xl font-bold text-slate-900 mt-1" id="today-pv">-</p>
+      </div>
+      <div class="bg-white rounded-xl border p-4 shadow-sm">
+        <p class="text-xs text-slate-400">今日 UV</p>
+        <p class="text-2xl font-bold text-blue-600 mt-1" id="today-uv">-</p>
+      </div>
+      <div class="bg-white rounded-xl border p-4 shadow-sm">
+        <p class="text-xs text-slate-400">累计 PV</p>
+        <p class="text-2xl font-bold text-slate-900 mt-1" id="total-pv">-</p>
+      </div>
+      <div class="bg-white rounded-xl border p-4 shadow-sm">
+        <p class="text-xs text-slate-400">累计 UV</p>
+        <p class="text-2xl font-bold text-blue-600 mt-1" id="total-uv">-</p>
+      </div>
+    </div>
+
+    <!-- 趋势图 -->
+    <div class="bg-white rounded-xl border p-4 shadow-sm">
+      <h2 class="text-sm font-semibold text-slate-700 mb-3">最近 30 天访问趋势</h2>
+      <canvas id="trend-chart" height="100"></canvas>
+    </div>
+
+    <!-- 两列布局 -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- 设备分布 -->
+      <div class="bg-white rounded-xl border p-4 shadow-sm">
+        <h2 class="text-sm font-semibold text-slate-700 mb-3">设备分布</h2>
+        <canvas id="device-chart" height="200"></canvas>
+      </div>
+
+      <!-- 来源统计 -->
+      <div class="bg-white rounded-xl border p-4 shadow-sm">
+        <h2 class="text-sm font-semibold text-slate-700 mb-3">访问来源</h2>
+        <div id="referrer-list" class="space-y-2 text-sm max-h-[300px] overflow-y-auto">
+          <p class="text-slate-400">加载中...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 最近访问 -->
+    <div class="bg-white rounded-xl border p-4 shadow-sm">
+      <h2 class="text-sm font-semibold text-slate-700 mb-3">最近访问记录</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs">
+          <thead>
+            <tr class="text-slate-400 border-b">
+              <th class="text-left py-2 px-2">时间</th>
+              <th class="text-left py-2 px-2">IP</th>
+              <th class="text-left py-2 px-2">页面</th>
+              <th class="text-left py-2 px-2">来源</th>
+              <th class="text-left py-2 px-2">设备</th>
+            </tr>
+          </thead>
+          <tbody id="recent-table" class="text-slate-600">
+            <tr><td colspan="5" class="py-4 text-center text-slate-400">加载中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const API_BASE = '/api/stats';
+
+    async function fetchJSON(url) {
+      const resp = await fetch(url);
+      return resp.json();
+    }
+
+    function deviceLabel(width) {
+      if (!width || width === 0) return '未知';
+      if (width < 768) return '手机';
+      if (width < 1024) return '平板';
+      return '桌面';
+    }
+
+    async function loadOverview() {
+      const data = await fetchJSON(`${API_BASE}/overview`);
+      document.getElementById('today-pv').textContent = data.todayPV.toLocaleString();
+      document.getElementById('today-uv').textContent = data.todayUV.toLocaleString();
+      document.getElementById('total-pv').textContent = data.totalPV.toLocaleString();
+      document.getElementById('total-uv').textContent = data.totalUV.toLocaleString();
+    }
+
+    async function loadTrend() {
+      const data = await fetchJSON(`${API_BASE}/trend?days=30`);
+      const ctx = document.getElementById('trend-chart').getContext('2d');
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: data.map(d => d.date.slice(5)),
+          datasets: [
+            {
+              label: 'PV',
+              data: data.map(d => d.pv),
+              borderColor: '#3b82f6',
+              backgroundColor: 'rgba(59,130,246,0.1)',
+              fill: true,
+              tension: 0.3,
+            },
+            {
+              label: 'UV',
+              data: data.map(d => d.uv),
+              borderColor: '#8b5cf6',
+              backgroundColor: 'rgba(139,92,246,0.1)',
+              fill: true,
+              tension: 0.3,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: 'top' } },
+          scales: { y: { beginAtZero: true } },
+        },
+      });
+    }
+
+    async function loadDevices() {
+      const data = await fetchJSON(`${API_BASE}/devices`);
+      const ctx = document.getElementById('device-chart').getContext('2d');
+      new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['手机', '平板', '桌面', '未知'],
+          datasets: [{
+            data: [data.mobile, data.tablet, data.desktop, data.unknown],
+            backgroundColor: ['#3b82f6', '#8b5cf6', '#10b981', '#94a3b8'],
+          }],
+        },
+        options: { responsive: true, plugins: { legend: { position: 'bottom' } } },
+      });
+    }
+
+    async function loadReferrers() {
+      const data = await fetchJSON(`${API_BASE}/referrers`);
+      const el = document.getElementById('referrer-list');
+      if (data.length === 0) {
+        el.innerHTML = '<p class="text-slate-400">暂无来源数据</p>';
+        return;
+      }
+      el.innerHTML = data.map(r => `
+        <div class="flex justify-between items-center py-1 border-b border-slate-100">
+          <span class="text-slate-600 truncate max-w-[250px]">${r.referrer || '直接访问'}</span>
+          <span class="text-slate-400 text-xs">${r.count} 次</span>
+        </div>
+      `).join('');
+    }
+
+    async function loadRecent() {
+      const data = await fetchJSON(`${API_BASE}/recent?limit=30`);
+      const el = document.getElementById('recent-table');
+      if (data.length === 0) {
+        el.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-slate-400">暂无记录</td></tr>';
+        return;
+      }
+      el.innerHTML = data.map(r => `
+        <tr class="border-b border-slate-50 hover:bg-slate-50">
+          <td class="py-1.5 px-2 whitespace-nowrap">${r.time || '-'}</td>
+          <td class="py-1.5 px-2">${r.ip || '-'}</td>
+          <td class="py-1.5 px-2">${r.path || '/'}</td>
+          <td class="py-1.5 px-2 truncate max-w-[150px]">${r.referrer || '直接'}</td>
+          <td class="py-1.5 px-2">${deviceLabel(r.screenWidth)}</td>
+        </tr>
+      `).join('');
+    }
+
+    // 加载所有数据
+    Promise.all([loadOverview(), loadTrend(), loadDevices(), loadReferrers(), loadRecent()])
+      .catch(err => console.error('加载统计数据失败:', err));
+  </script>
+</body>
+</html>

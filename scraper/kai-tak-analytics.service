@@ -1,0 +1,14 @@
+[Unit]
+Description=Kai Tak Rental Analytics Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/kai-tak-scraper
+ExecStart=/usr/bin/python3 /opt/kai-tak-scraper/analytics_server.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

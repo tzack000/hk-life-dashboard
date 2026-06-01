@@ -7,6 +7,12 @@ import { TransactionTable } from '@/sections/TransactionTable';
 
 function App() {
   const {
+    txType,
+    setTxType,
+    selectedDistrict,
+    setSelectedDistrict,
+    districts: districtList,
+    districtEstateNames,
     selectedMonth,
     setSelectedMonth,
     selectedEstate,
@@ -16,11 +22,11 @@ function App() {
     availableMonths,
     filteredTransactions,
     stats,
-    estateAvgRents,
+    estateAvgPrices,
     monthLabel,
     trendEstate,
     setTrendEstate,
-    rentTrendData,
+    priceTrendData,
     dataSource,
     lastUpdated,
   } = useRentalData();
@@ -34,6 +40,11 @@ function App() {
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
       <Header
+        txType={txType}
+        setTxType={setTxType}
+        selectedDistrict={selectedDistrict}
+        setSelectedDistrict={setSelectedDistrict}
+        districtEstateNames={districtEstateNames}
         selectedMonth={selectedMonth}
         setSelectedMonth={setSelectedMonth}
         selectedEstate={selectedEstate}
@@ -46,16 +57,18 @@ function App() {
       />
 
       <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
-        <StatsOverview stats={stats} monthLabel={monthLabel} />
+        <StatsOverview txType={txType} stats={stats} monthLabel={monthLabel} />
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <RentChart estateAvgRents={estateAvgRents} monthLabel={monthLabel} />
+          <RentChart txType={txType} estateAvgPrices={estateAvgPrices} monthLabel={monthLabel} />
           <RentTrendChart
+            txType={txType}
             trendEstate={trendEstate}
             setTrendEstate={setTrendEstate}
-            rentTrendData={rentTrendData}
+            priceTrendData={priceTrendData}
+            districtEstateNames={districtEstateNames}
           />
         </div>
-        <TransactionTable transactions={filteredTransactions} monthLabel={monthLabel} />
+        <TransactionTable txType={txType} transactions={filteredTransactions} monthLabel={monthLabel} />
       </main>
 
       <footer className="border-t bg-white/60 backdrop-blur-sm">

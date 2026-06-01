@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-启德租赁成交数据爬虫
-从中原地产网站爬取启德新区各小区的租赁成交记录。
+香港生活看板 - 租赁成交数据爬虫
+从中原地产楼盘页面爬取启德、荃湾西、大埔墟、将军澳各小区的租赁成交记录。
 数据写入 SQLite 数据库，并导出 JSON 供前端使用。
 每日凌晨由 cron 调用。
 
@@ -13,67 +13,76 @@ import json
 import logging
 import re
 import sqlite3
+import subprocess
 import sys
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import requests
-from bs4 import BeautifulSoup
 
 # ── 配置 ──────────────────────────────────────────────
-DB_PATH = Path("/opt/kai-tak-scraper/rental.db")
-OUTPUT_DIR = Path("/var/www/kai-tak-rental/data")
+# 路径可通过环境变量覆盖（见项目根目录 .env）
+import os
+
+SCRAPER_DIR = Path(os.environ.get("SCRAPER_DIR", "/opt/kai-tak-scraper"))
+WEB_DIR     = Path(os.environ.get("WEB_DIR", "/var/www/kai-tak-rental"))
+
+DB_PATH     = SCRAPER_DIR / "rental.db"
+OUTPUT_DIR  = WEB_DIR / "data"
 OUTPUT_FILE = OUTPUT_DIR / "transactions.json"
-LOG_FILE = Path("/var/log/kai-tak-scraper.log")
+LOG_FILE    = Path(os.environ.get("SCRAPER_LOG", "/var/log/kai-tak-scraper.log"))
 
-# 中原地产启德新区成交页面（租赁）
-BASE_URL = "https://hk.centanet.com/findproperty/zh-cn/list/transaction"
+# ── 中原地产 API ──
+ESTATE_SEARCH_API = "https://hk.centanet.com/findproperty/api/Estate/Search"
+ESTATE_PAGE_BASE = "https://hk.centanet.com/estate"
 
-# 目标小区列表（中原地产页面上的名称 → 标准名称）
-TARGET_ESTATES = {
-    "Oasis Kai Tak": "Oasis Kai Tak",
-    "嘉汇": "K.CITY",
-    "K.CITY": "K.CITY",
-    "嘉峯汇": "K.Summit",
-    "嘉峯匯": "K.Summit",
-    "K.Summit": "K.Summit",
-    "Monaco One": "Monaco One",
-    "MONACO ONE": "Monaco One",
-    "Monaco Marine": "Monaco Marine",
-    "MONACO MARINE": "Monaco Marine",
-    "VIBE": "VIBE",
-    "啟岸": "VIBE",
-    "启德1号": "One Kai Tak",
-    "启德1号(I)": "One Kai Tak",
-    "One Kai Tak": "One Kai Tak",
-    "AIRSIDE": "AIRSIDE",
-    "The Henley": "The Henley",
-    "THE HENLEY": "The Henley",
-    "尚·珒溋": "Upper RiverBank",
-    "尚珒溋": "Upper RiverBank",
-    "Upper RiverBank": "Upper RiverBank",
-}
-
-# 小区 ID 映射
-ESTATE_IDS = {
-    "Oasis Kai Tak": "oasis-kai-tak",
-    "K.CITY": "k-city",
-    "K.Summit": "k-summit",
-    "Monaco One": "monaco-one",
-    "Monaco Marine": "monaco-marine",
-    "VIBE": "vibe",
-    "One Kai Tak": "one-kai-tak",
-    "AIRSIDE": "airside",
-    "The Henley": "the-henley",
-    "Upper RiverBank": "upper-river-bank",
+# ── 楼盘配置 ──
+# (标准名称, 中原繁体名称, typeCode)
+ESTATES_CONFIG = {
+    # ── 启德 ──
+    "oasis-kai-tak": ("Oasis Kai Tak", "Oasis Kai Tak", "2-EYPPWPPRPG"),
+    "k-city": ("K.CITY", "嘉匯", "2-EYPPWPPHPG"),
+    "k-summit": ("K.Summit", "嘉峯匯", "2-EYPPWWPSWG"),
+    "monaco-one": ("Monaco One", "Monaco One", "3-EYSPWPPRPG"),
+    "monaco-marine": ("Monaco Marine", "Monaco Marine", "2-EYSPWPPRSG"),
+    "vibe": ("VIBE", "龍譽", "2-EYPPWPPAPG"),
+    "one-kai-tak": ("One Kai Tak", "啟德1號", "3-EYPPWPPJPG"),
+    "airside": ("AIRSIDE", "AIRSIDE", "3-EYSPWPPZPG"),
+    "the-henley": ("The Henley", "The Henley", "3-EYSPWPPHPG"),
+    "upper-river-bank": ("Upper RiverBank", "尚．珒溋", "2-EYPPWWPOWG"),
+    # ── 荃湾西 ──
+    "pavilia-bay": ("柏傲湾 (Pavilia Bay)", "柏傲灣", "2-AEPPWPPYPG"),
+    "ocean-pride": ("海之恋 (Ocean Pride)", "海之戀", "3-AESPWPPAPK"),
+    "the-aurora": ("全·城汇 (The Aurora)", "全．城匯", "2-AESPWPPRPK"),
+    "vision-city": ("环宇海湾 (Vision City)", "環宇海灣", "2-AEPPWPPAPG"),
+    "bayview-park": ("海湾花园 (Bayview Park)", "海灣花園", "2-AEEPPPSVPW"),
+    "tsuen-wan-garden": ("荃湾花园", "荃灣花園", "2-QUROURFXRS"),
+    # ── 大埔墟 ──
+    "eight-peak": ("八号花园 (Eight Peak)", "八號花園", "2-DCQFFRQXRO"),
+    "tai-po-habitat": ("岚山 (Tai Po Habitat)", "嵐山", "3-DEPPWPPSPE"),
+    "savana": ("天钻 (Savana)", "天鑽", "2-DEPPWPPJPB"),
+    "monte-vista": ("比华利山别墅 (Monte Vista)", "比華利山別墅", "3-DEPPWPPEPS"),
+    "vanke-cloud": ("万科·云汇 (Vanke Cloud)", "雲滙", "3-DESPWPPHPW"),
+    "shatin-heights": ("大埔中心 (Tai Po Centre)", "大埔中心", "3-GYWKPPKYPS"),
+    # ── 将军澳 ──
+    "lohas-park": ("日出康城 (LOHAS Park)", "日出康城", "3-YAPPWPPJPW"),
+    "tko-centre": ("将军澳中心 (Tseung Kwan O Centre)", "將軍澳中心", "3-YAPPWPPEPY"),
+    "ocean-shores": ("维景湾畔 (Ocean Shores)", "維景灣畔", "3-YAPPWPPEPA"),
+    "metro-town": ("都会駅 (Metro Town)", "都會駅", "3-YAPPWPPJPA"),
+    "tko-plaza": ("将军澳广场 (Tseung Kwan O Plaza)", "將軍澳廣場", "3-YAPPWPPJPY"),
+    "metro-city": ("新都城 (Metro City)", "新都城", "3-YAPPWPPEPG"),
+    "bauhinia-garden": ("宝盈花园 (Bauhinia Garden)", "寶盈花園", "2-XINDIHZXHD"),
+    "grand-ocean": ("君傲湾 (Grand Ocean)", "君傲灣", "2-YAPPWPPHPY"),
+    "capri": ("Capri", "Capri", "2-YAPPWPPSPY"),
+    "tian-jin": ("天晋 (The Wings)", "天晉", "2-YAPPWPPOPY"),
 }
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                   "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "zh-HK,zh;q=0.9,en;q=0.8",
 }
 
 # ── 日志 ──────────────────────────────────────────────
@@ -150,6 +159,28 @@ def init_db() -> sqlite3.Connection:
         ("airside", "AIRSIDE", "AIRSIDE", "启德协调道2号", "启德", "商住", 402, 2023),
         ("the-henley", "The Henley", "The Henley", "启德承启道18号", "启德", "住宅", 1184, 2022),
         ("upper-river-bank", "Upper RiverBank", "尚·珒溋", "启德沐泰街11号", "启德", "住宅", 667, 2021),
+        ("pavilia-bay", "Pavilia Bay", "柏傲湾", "荃湾永顺街48号", "荃湾西", "住宅", 984, 2019),
+        ("ocean-pride", "Ocean Pride", "海之恋", "荃湾永顺街38号", "荃湾西", "住宅", 856, 2018),
+        ("the-aurora", "The Aurora", "全·城汇", "荃湾西站上盖", "荃湾西", "住宅", 1120, 2018),
+        ("vision-city", "Vision City", "环宇海湾", "荃湾永顺街1号", "荃湾西", "住宅", 640, 2015),
+        ("bayview-park", "Bayview Park", "海湾花园", "荃湾青山公路", "荃湾西", "住宅", 560, 1998),
+        ("tsuen-wan-garden", "Tsuen Wan Garden", "荃湾花园", "荃湾海坝街", "荃湾西", "住宅", 480, 1993),
+        ("eight-peak", "Eight Peak", "八号花园", "大埔墟宝乡街8号", "大埔墟", "住宅", 336, 2019),
+        ("tai-po-habitat", "Tai Po Habitat", "岚山", "大埔梧桐路1号", "大埔墟", "住宅", 416, 2015),
+        ("savana", "Savana", "天钻", "大埔公路大埔段", "大埔墟", "住宅", 544, 2017),
+        ("monte-vista", "Monte Vista", "比华利山别墅", "大埔公路大埔段", "大埔墟", "住宅", 378, 2012),
+        ("vanke-cloud", "Vanke Cloud", "万科·云汇", "大埔宝湖道", "大埔墟", "住宅", 420, 2020),
+        ("shatin-heights", "Tai Po Centre", "大埔中心", "大埔安邦路", "大埔墟", "住宅", 2848, 1987),
+        ("lohas-park", "LOHAS Park", "日出康城", "将军澳康城路1号", "将军澳", "住宅", 2550, 2009),
+        ("tko-centre", "Tseung Kwan O Centre", "将军澳中心", "将军澳唐德街9号", "将军澳", "住宅", 4044, 2004),
+        ("ocean-shores", "Ocean Shores", "维景湾畔", "将军澳维景湾畔", "将军澳", "住宅", 3256, 2003),
+        ("metro-town", "Metro Town", "都会駅", "将军澳唐俊街9号", "将军澳", "住宅", 2096, 2006),
+        ("tko-plaza", "Tseung Kwan O Plaza", "将军澳广场", "将军澳唐德街1号", "将军澳", "住宅", 3984, 2005),
+        ("metro-city", "Metro City", "新都城", "将军澳贸业路9号", "将军澳", "住宅", 3336, 2000),
+        ("bauhinia-garden", "Bauhinia Garden", "宝盈花园", "将军澳唐俊街15号", "将军澳", "住宅", 1440, 2005),
+        ("grand-ocean", "Grand Ocean", "君傲湾", "将军澳唐俊街8号", "将军澳", "住宅", 1520, 2006),
+        ("capri", "Capri", "Capri", "将军澳康城路33号", "将军澳", "住宅", 828, 2015),
+        ("tian-jin", "The Wings", "天晋", "将军澳唐贤街23号", "将军澳", "住宅", 1008, 2013),
     ]
 
     conn.executemany(
@@ -172,7 +203,7 @@ def save_to_db(conn: sqlite3.Connection, transactions: list[dict]) -> int:
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     tx["id"],
-                    ESTATE_IDS.get(tx["estateName"], ""),
+                    tx.get("estateId", ""),
                     tx["estateName"],
                     tx.get("address", ""),
                     tx.get("layout", ""),
@@ -242,195 +273,213 @@ def export_json(conn: sqlite3.Connection) -> None:
 
 
 # ── 爬虫逻辑 ─────────────────────────────────────────
-def normalize_estate_name(raw_name: str) -> str | None:
-    """将网页上的小区名称映射为标准名称"""
-    raw = raw_name.strip()
-    if raw in TARGET_ESTATES:
-        return TARGET_ESTATES[raw]
-    for key, val in TARGET_ESTATES.items():
-        if key.lower() in raw.lower() or raw.lower() in key.lower():
-            return val
-    return None
-
-
-def parse_rent(text: str) -> int | None:
-    """解析租金文本"""
-    nums = re.findall(r"[\d,]+", text.replace(",", "").replace("，", ""))
-    if nums:
-        try:
-            return int(nums[0].replace(",", ""))
-        except ValueError:
-            return None
-    return None
-
-
-def parse_area(text: str) -> float | None:
-    """解析面积文本"""
-    nums = re.findall(r"[\d,.]+", text)
-    if nums:
-        try:
-            return float(nums[0].replace(",", ""))
-        except ValueError:
-            return None
-    return None
-
-
-def fetch_page(session: requests.Session, url: str, retries: int = 3) -> str | None:
-    """带重试的 HTTP GET"""
-    for attempt in range(retries):
+def fetch_estate_page(session: requests.Session, centanet_name: str, type_code: str) -> str | None:
+    """获取楼盘页面 HTML"""
+    url = f"{ESTATE_PAGE_BASE}/{centanet_name}/{type_code}"
+    for attempt in range(3):
         try:
             resp = session.get(url, headers=HEADERS, timeout=30)
-            resp.raise_for_status()
-            return resp.text
+            if resp.status_code == 200:
+                return resp.text
+            elif resp.status_code == 302:
+                # 跟踪重定向
+                redirect_url = resp.headers.get("Location", "")
+                if redirect_url:
+                    full_url = f"https://hk.centanet.com{redirect_url}" if redirect_url.startswith("/") else redirect_url
+                    resp2 = session.get(full_url, headers=HEADERS, timeout=30)
+                    if resp2.status_code == 200:
+                        return resp2.text
+            log.warning(f"  请求 {url} 返回 {resp.status_code} (尝试 {attempt+1}/3)")
         except requests.RequestException as e:
-            log.warning(f"请求失败 (尝试 {attempt+1}/{retries}): {e}")
-            if attempt < retries - 1:
-                time.sleep(2 ** attempt)
+            log.warning(f"  请求失败 (尝试 {attempt+1}/3): {e}")
+        if attempt < 2:
+            time.sleep(2 ** attempt)
     return None
 
 
-def scrape_centanet_transactions(months_back: int = 2) -> list[dict]:
-    """爬取中原地产启德新区的租赁成交数据"""
-    transactions = []
-    session = requests.Session()
-
-    # 尝试 API 接口
-    api_url = "https://hk.centanet.com/findproperty/api/Transaction/Search"
-    now = datetime.now()
-    date_from = (now - timedelta(days=30 * months_back)).strftime("%Y-%m-%d")
-    date_to = now.strftime("%Y-%m-%d")
-
-    payload = {
-        "dateFrom": date_from,
-        "dateTo": date_to,
-        "postType": "租赁",
-        "regionId": "19-HMA117",
-        "pageIndex": 1,
-        "pageSize": 200,
-        "sortBy": "TransactionDate",
-        "sortOrder": "desc",
+# ── Node.js NUXT 解析脚本 ──
+NUXT_PARSER_JS = r'''
+const fs = require("fs");
+const nuxtStr = fs.readFileSync("/tmp/_nuxt_data.js", "utf8");
+let result;
+try {
+    eval("result = " + nuxtStr);
+} catch(e) {
+    console.error("Eval error:", e.message);
+    process.exit(1);
+}
+function findTransactions(obj, depth) {
+    if (depth > 20 || !obj || typeof obj !== "object") return null;
+    if (obj.recentTransactions && Array.isArray(obj.recentTransactions)) return obj.recentTransactions;
+    for (const key of Object.keys(obj)) {
+        try {
+            const found = findTransactions(obj[key], depth + 1);
+            if (found) return found;
+        } catch(e) {}
     }
+    return null;
+}
+const txns = findTransactions(result, 0);
+if (txns && txns.length > 0) {
+    const output = txns.filter(t => t.postType === "R").map(t => ({
+        id: "centa-" + t.id,
+        transactionPrice: t.transactionPrice,
+        insDate: t.insDate ? t.insDate.substring(0, 10) : "",
+        nArea: t.nArea || 0,
+        nUnitPrice: t.nUnitPrice || 0,
+        yAxis: t.yAxis || "",
+        xAxis: t.xAxis || "",
+        line1: (t.displayText && t.displayText.addr && t.displayText.addr.line1) || "",
+    }));
+    console.log(JSON.stringify(output));
+} else {
+    console.log("[]");
+}
+'''
 
+
+def extract_transactions_from_nuxt(html: str, estate_id: str, estate_name: str) -> list[dict]:
+    """
+    从楼盘页面的 NUXT 数据中提取租赁成交记录。
+    使用 Node.js 解析压缩的 NUXT JS 数据，解决变量引用问题。
+    """
+    m = re.search(r'window\.__NUXT__\s*=\s*(.+?)(?:</script>)', html, re.DOTALL)
+    if not m:
+        log.warning(f"  {estate_name}: 页面中未找到 NUXT 数据")
+        return []
+    
+    nuxt = m.group(1)
+    
+    # 将 NUXT 数据写入临时文件
+    nuxt_file = "/tmp/_nuxt_data.js"
     try:
-        log.info(f"尝试 API 接口: {api_url}")
-        resp = session.post(api_url, json=payload, headers={
-            **HEADERS, "Content-Type": "application/json",
-        }, timeout=30)
-
-        if resp.status_code == 200:
-            data = resp.json()
-            items = data.get("data", {}).get("items", []) or data.get("items", []) or []
-            log.info(f"API 返回 {len(items)} 条记录")
-
-            for item in items:
-                estate_raw = item.get("estateName", "") or item.get("estate", "")
-                estate = normalize_estate_name(estate_raw)
-                if not estate:
-                    continue
-
-                rent = item.get("price") or item.get("rent") or 0
-                area = item.get("netArea") or item.get("area") or 0
-
-                tx = {
-                    "id": f"centa-{item.get('id', '')}",
-                    "estateName": estate,
-                    "address": item.get("address", ""),
-                    "layout": item.get("layout", item.get("room", "")),
-                    "area": round(float(area)) if area else 0,
-                    "floor": str(item.get("floor", "")),
-                    "monthlyRent": int(rent) if rent else 0,
-                    "rentPerSqft": round(int(rent) / float(area), 1) if rent and area and float(area) > 0 else 0,
-                    "transactionDate": item.get("transactionDate", "")[:10],
-                    "source": "centanet",
-                }
-                transactions.append(tx)
-        else:
-            log.warning(f"API 返回状态码: {resp.status_code}")
-    except Exception as e:
-        log.warning(f"API 接口失败: {e}")
-
-    # 回退到 HTML 爬取
-    if not transactions:
-        log.info("API 未返回数据，尝试 HTML 页面爬取...")
-        transactions = scrape_html_fallback(session)
-
-    return transactions
-
-
-def scrape_html_fallback(session: requests.Session) -> list[dict]:
-    """回退方案：爬取 HTML 页面"""
+        with open(nuxt_file, "w", encoding="utf-8") as f:
+            f.write(nuxt)
+    except OSError as e:
+        log.error(f"  {estate_name}: 写入 NUXT 临时文件失败: {e}")
+        return []
+    
+    # 调用 Node.js 解析
+    try:
+        proc = subprocess.run(
+            ["node", "-e", NUXT_PARSER_JS],
+            capture_output=True, text=True, timeout=15,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        log.error(f"  {estate_name}: Node.js 执行失败: {e}")
+        return []
+    
+    if proc.returncode != 0:
+        log.error(f"  {estate_name}: NUXT 解析错误: {proc.stderr[:200]}")
+        return []
+    
+    # 解析 JSON 输出
+    try:
+        raw_txns = json.loads(proc.stdout)
+    except json.JSONDecodeError as e:
+        log.error(f"  {estate_name}: JSON 解析失败: {e}")
+        return []
+    
+    # 转换为标准格式
     transactions = []
-
-    estate_urls = {
-        "K.CITY": "嘉汇/2-EYPPWPPHPG",
-        "Oasis Kai Tak": "OASIS-KAI-TAK/2-EYPPWPPRPG",
-        "K.Summit": "嘉峰汇/2-EYPPWWPSWG",
-        "The Henley": "THE-HENLEY/3-EYSPWPPHPG",
-        "Monaco One": "MONACO-ONE/3-EYSPWPPXPG",
-        "Monaco Marine": "MONACO-MARINE/3-EYSPWPPYPG",
-        "VIBE": "VIBE/2-EYPPWPPTPG",
-        "AIRSIDE": "AIRSIDE/3-EYSPWPPZPG",
-    }
-
-    for estate_name, url_path in estate_urls.items():
-        url = f"https://hk.centanet.com/estate/zh-cn/{url_path}"
-        log.info(f"爬取 {estate_name}: {url}")
-
-        html = fetch_page(session, url)
-        if not html:
-            continue
-
-        soup = BeautifulSoup(html, "html.parser")
-        rows = soup.select("table tr, .transaction-item, .deal-item, [class*='transaction']")
-        log.info(f"  找到 {len(rows)} 个候选元素")
-
-        for row in rows:
-            try:
-                cells = row.find_all("td") if row.name == "tr" else row.find_all(class_=True)
-                if len(cells) < 3:
-                    continue
-
-                text = row.get_text(separator="|", strip=True)
-                if "租" not in text and "rent" not in text.lower():
-                    continue
-
-                rent = parse_rent(text)
-                area = parse_area(text)
-
-                if rent and rent > 5000:
-                    tx = {
-                        "id": f"centa-html-{hash(text) & 0xFFFFFF:06x}",
-                        "estateName": estate_name,
-                        "address": "",
-                        "layout": "",
-                        "area": round(area) if area else 0,
-                        "floor": "",
-                        "monthlyRent": rent,
-                        "rentPerSqft": round(rent / area, 1) if area and area > 0 else 0,
-                        "transactionDate": "",
-                        "source": "centanet-html",
-                    }
-                    transactions.append(tx)
-            except Exception as e:
-                log.debug(f"  解析行失败: {e}")
-                continue
-
-        time.sleep(1)
-
+    for t in raw_txns:
+        price = t.get("transactionPrice", 0)
+        area = t.get("nArea", 0)
+        unit_price = t.get("nUnitPrice", 0)
+        if not unit_price and area > 0 and price > 0:
+            unit_price = round(price / area, 1)
+        
+        # 从 line1 解析楼座和房型信息
+        line1 = t.get("line1", "")
+        layout = ""
+        if line1:
+            # 格式: "Oasis Kai Tak 3座 中層 F室" -> 提取 "3座 F室" 或 "3房"
+            parts = line1.split()
+            if len(parts) >= 3:
+                layout = f"{parts[-2]} {parts[-1]}"  # e.g. "中層 F室"
+        
+        tx = {
+            "id": t["id"],
+            "estateId": estate_id,
+            "estateName": estate_name,
+            "address": "",
+            "layout": layout,
+            "area": area,
+            "floor": t.get("yAxis", ""),
+            "monthlyRent": int(price),
+            "rentPerSqft": unit_price,
+            "transactionDate": t.get("insDate", ""),
+            "source": "centanet",
+        }
+        transactions.append(tx)
+    
     return transactions
+
+
+def scrape_estate_transactions(session: requests.Session, estate_id: str, estate_name: str, 
+                                centanet_name: str, type_code: str) -> list[dict]:
+    """爬取单个楼盘的租赁成交数据"""
+    html = fetch_estate_page(session, centanet_name, type_code)
+    if not html:
+        log.warning(f"  {estate_name}: 无法获取页面")
+        return []
+    
+    transactions = extract_transactions_from_nuxt(html, estate_id, estate_name)
+    log.info(f"  {estate_name}: 找到 {len(transactions)} 条租赁成交")
+    return transactions
+
+
+def scrape_all_transactions() -> list[dict]:
+    """爬取所有目标楼盘的租赁成交数据"""
+    session = requests.Session()
+    all_transactions = []
+    district_counts = {"启德": 0, "荃湾西": 0, "大埔墟": 0, "将军澳": 0}
+    
+    # 确定每个楼盘的区域
+    district_map = {}
+    for eid, (name, cn_name, tc) in ESTATES_CONFIG.items():
+        if eid in ["oasis-kai-tak", "k-city", "k-summit", "monaco-one", "monaco-marine", 
+                    "vibe", "one-kai-tak", "airside", "the-henley", "upper-river-bank"]:
+            district_map[eid] = "启德"
+        elif eid in ["pavilia-bay", "ocean-pride", "the-aurora", "vision-city", "bayview-park", "tsuen-wan-garden"]:
+            district_map[eid] = "荃湾西"
+        elif eid in ["lohas-park", "tko-centre", "ocean-shores", "metro-town", "tko-plaza",
+                     "metro-city", "bauhinia-garden", "grand-ocean", "capri", "tian-jin"]:
+            district_map[eid] = "将军澳"
+        else:
+            district_map[eid] = "大埔墟"
+    
+    for estate_id, (estate_name, centanet_name, type_code) in ESTATES_CONFIG.items():
+        district = district_map.get(estate_id, "启德")
+        log.info(f"爬取 {estate_name} ({district}): {centanet_name}/{type_code}")
+        
+        try:
+            txns = scrape_estate_transactions(session, estate_id, estate_name, centanet_name, type_code)
+            all_transactions.extend(txns)
+            district_counts[district] += len(txns)
+        except Exception as e:
+            log.error(f"  {estate_name} 爬取失败: {e}")
+        
+        time.sleep(1)  # 避免请求过快
+    
+    for district, count in district_counts.items():
+        log.info(f"区域 {district}: 共 {count} 条租赁成交")
+    
+    return all_transactions
 
 
 # ── 主流程 ────────────────────────────────────────────
 def main():
     log.info("=" * 50)
-    log.info("启德租赁成交数据爬虫 开始运行")
+    log.info("香港生活看板 - 租赁成交数据爬虫 开始运行")
+    log.info(f"目标楼盘: {len(ESTATES_CONFIG)} 个")
     log.info("=" * 50)
 
     conn = init_db()
 
     try:
-        transactions = scrape_centanet_transactions(months_back=2)
-        log.info(f"共爬取 {len(transactions)} 条成交记录")
+        transactions = scrape_all_transactions()
+        log.info(f"共爬取 {len(transactions)} 条租赁成交记录")
 
         if transactions:
             new_count = save_to_db(conn, transactions)

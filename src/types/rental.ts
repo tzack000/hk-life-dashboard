@@ -1,3 +1,7 @@
+export type District = '启德' | '荃湾西' | '大埔墟' | '将军澳';
+
+export type TxType = 'rental' | 'sale';
+
 export interface RentalTransaction {
   id: string;
   estateName: string;
@@ -11,6 +15,23 @@ export interface RentalTransaction {
   transactionDate: string; // 成交日期
   propertyType: '住宅' | '商住' | '服务式住宅';
 }
+
+export interface SaleTransaction {
+  id: string;
+  estateName: string;
+  address: string;
+  layout: string;
+  area: number; // 面积(平方尺)
+  floor: number;
+  totalFloors: number;
+  totalPrice: number; // 成交价(港币)
+  pricePerSqft: number; // 尺价(港币/平方尺)
+  transactionDate: string;
+  propertyType: '住宅' | '商住' | '服务式住宅';
+}
+
+/** 统一交易类型 */
+export type Transaction = RentalTransaction | SaleTransaction;
 
 export interface Estate {
   id: string;

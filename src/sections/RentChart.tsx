@@ -6,23 +6,27 @@ import {
   type ChartConfig,
 } from '@/components/ui/chart';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import type { TxType } from '@/types/rental';
 
 interface RentChartProps {
-  estateAvgRents: { name: string; avgRent: number; count: number }[];
+  txType: TxType;
+  estateAvgPrices: { name: string; avgPricePerSqft: number; count: number }[];
   monthLabel: string;
 }
 
-const chartConfig: ChartConfig = {
-  avgRent: {
-    label: '平均月租',
-    color: '#3B82F6',
-  },
-};
+export function RentChart({ txType, estateAvgPrices, monthLabel }: RentChartProps) {
+  const isRental = txType === 'rental';
 
-export function RentChart({ estateAvgRents, monthLabel }: RentChartProps) {
-  const data = estateAvgRents.map((item) => ({
+  const chartConfig: ChartConfig = {
+    avgPricePerSqft: {
+      label: isRental ? '平均尺租' : '平均尺价',
+      color: '#3B82F6',
+    },
+  };
+
+  const data = estateAvgPrices.map((item) => ({
     name: item.name,
-    avgRent: item.avgRent,
+    avgPricePerSqft: item.avgPricePerSqft,
     count: item.count,
   }));
 
@@ -30,10 +34,10 @@ export function RentChart({ estateAvgRents, monthLabel }: RentChartProps) {
     <Card className="transition-shadow duration-200 hover:shadow-md">
       <CardHeader>
         <CardTitle className="text-base font-semibold text-[#0F172A]">
-          各小区平均月租对比
+          各小区平均每尺{isRental ? '租金' : '售价'}对比
         </CardTitle>
         <CardDescription className="text-xs text-[#94A3B8]">
-          {monthLabel} · 单位：港币(HK$)
+          {monthLabel} · 单位：HK$/sqft
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -46,7 +50,7 @@ export function RentChart({ estateAvgRents, monthLabel }: RentChartProps) {
             <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="#E2E8F0" />
             <XAxis
               type="number"
-              tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`}
+              tickFormatter={(v: number) => isRental ? `${v}` : `${(v / 1000).toFixed(0)}k`}
               tick={{ fill: '#94A3B8', fontSize: 11 }}
               axisLine={false}
               tickLine={false}
@@ -62,12 +66,12 @@ export function RentChart({ estateAvgRents, monthLabel }: RentChartProps) {
             <ChartTooltip
               content={
                 <ChartTooltipContent
-                  formatter={(value) => `HK$${Number(value).toLocaleString()}`}
+                  formatter={(value) => `HK$${Number(value).toLocaleString()}/sqft`}
                 />
               }
             />
             <Bar
-              dataKey="avgRent"
+              dataKey="avgPricePerSqft"
               fill="#3B82F6"
               radius={[0, 6, 6, 0]}
               maxBarSize={28}
