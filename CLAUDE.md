@@ -5,14 +5,14 @@
 ## 项目简介
 
 **香港生活看板** — 多区域房产租赁成交价格展示网站。
-- 在线地址：https://life.tzack000.win
+- 在线地址：见 `.env` 中的 `SITE_DOMAIN`
 - 前端：React 19 + TypeScript + Vite + Tailwind + shadcn/ui
 - 后端：Python 爬虫 + SQLite + Nginx 静态托管
 - 数据源：中原地产 (hk.centanet.com)
 
 ## 环境配置（首次必做）
 
-1. 读取 `.env` 文件获取服务器连接信息
+1. 读取 `.env` 文件获取服务器连接信息（如不存在，从 `.env.example` 复制并填写）
 2. 验证 SSH 连接：`ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "echo ok"`
 3. 如果连接失败，提示用户配置 SSH 密钥或检查 `.env`
 
@@ -26,13 +26,13 @@
 
 ## 关键路径
 
-| 用途 | 路径 |
+| 用途 | 路径（默认值，可通过 .env 覆盖） |
 |------|------|
-| 爬虫脚本 | /opt/kai-tak-scraper/scrape_centanet.py |
-| SQLite 数据库 | /opt/kai-tak-scraper/rental.db |
-| 前端静态文件 | /var/www/kai-tak-rental/ |
-| 前端数据源 | /var/www/kai-tak-rental/data/transactions.json |
-| 爬虫日志 | /var/log/kai-tak-scraper.log |
+| 爬虫脚本 | $SCRAPER_DIR/scrape_centanet.py |
+| SQLite 数据库 | $SCRAPER_DIR/rental.db |
+| 前端静态文件 | $WEB_DIR/ |
+| 前端数据源 | $DATA_DIR/transactions.json |
+| 爬虫日志 | $SCRAPER_LOG |
 | 统计 API | 127.0.0.1:8901 |
 | Nginx 配置 | /etc/nginx/sites-enabled/kai-tak-rental |
 

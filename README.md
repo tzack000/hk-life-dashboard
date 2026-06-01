@@ -2,7 +2,7 @@
 
 香港多区域房产租赁成交价格展示网站，数据每日自动从**中原地产**爬取更新。
 
-**在线访问：** https://life.tzack000.win
+**在线访问：** 见 `.env` 中的 `SITE_DOMAIN`
 
 ---
 
@@ -11,24 +11,24 @@
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                      用户浏览器                               │
-│  访问 https://life.tzack000.win                              │
+│  访问 $SITE_DOMAIN                                           │
 │  前端 fetch ./data/transactions.json → 渲染图表/表格          │
 │  无服务器数据时 fallback 到内置模拟数据                        │
 └────────────────────────┬─────────────────────────────────────┘
                          │ HTTP/HTTPS
                          ▼
 ┌──────────────────────────────────────────────────────────────┐
-│  服务器 124.156.182.215 (Ubuntu 24.04)                       │
+│  远程服务器 ($SERVER_HOST, Ubuntu 24.04)                     │
 │                                                              │
 │  Nginx ─ 静态托管 + 反向代理                                  │
-│    ├── /              → /var/www/kai-tak-rental/index.html   │
+│    ├── /              → $WEB_DIR/index.html                  │
 │    ├── /assets/       → JS/CSS 静态资源                      │
 │    ├── /data/         → transactions.json (前端数据源)        │
 │    ├── /api/track     → 反代 → 127.0.0.1:8901 (PV/UV 统计)  │
 │    └── /api/stats     → 反代 → 127.0.0.1:8901 (需 Basic Auth)│
 │                                                              │
 │  ┌─────────────────────────────────────────────────────┐     │
-│  │  /opt/kai-tak-scraper/                              │     │
+│  │  $SCRAPER_DIR/                                      │     │
 │  │  ├── scrape_centanet.py    ← 爬虫脚本               │     │
 │  │  ├── rental.db             ← SQLite 数据库           │     │
 │  │  ├── analytics_server.py   ← 统计 API 服务          │     │
@@ -36,7 +36,7 @@
 │  └─────────────────────────────────────────────────────┘     │
 │                                                              │
 │  ┌─────────────────────────────────────────────────────┐     │
-│  │  /var/www/kai-tak-rental/                           │     │
+│  │  $WEB_DIR/                                          │     │
 │  │  ├── index.html            ← 前端入口               │     │
 │  │  ├── admin.html            ← 管理页                 │     │
 │  │  ├── assets/               ← JS/CSS                 │     │
@@ -65,7 +65,7 @@ SQLite (rental.db)
   │  INSERT OR IGNORE 去重写入
   ▼
 导出 JSON (transactions.json)
-  │  SELECT 最新 2000 条 → 写入 /var/www/kai-tak-rental/data/
+  │  SELECT 最新 2000 条 → 写入 $DATA_DIR/
   ▼
 前端 fetch
   │  按 区域/月份/楼盘 过滤渲染
@@ -176,15 +176,18 @@ npm run build
 # 1. 复制环境变量模板
 cp .env.example .env
 
-# 2. 确认 .env 中的服务器信息正确
-cat .env
-# SERVER_HOST=124.156.182.215
-# SERVER_USER=ubuntu
-# SERVER_PORT=22
-# SITE_DOMAIN=life.tzack000.win
+# 2. 编辑 .env，填入实际的服务器 IP、用户名、域名等
+#    SERVER_HOST=your_server_ip
+#    SERVER_USER=your_username
+#    SERVER_PORT=22
+#    SITE_DOMAIN=your-domain.com
+#    SCRAPER_DIR=/opt/kai-tak-scraper
+#    WEB_DIR=/var/www/kai-tak-rental
+#    DATA_DIR=/var/www/kai-tak-rental/data
+#    SCRAPER_LOG=/var/log/kai-tak-scraper.log
 
 # 3. 验证 SSH 连接（需已配置密钥或密码）
-ssh -p 22 ubuntu@124.156.182.215 "echo connected"
+ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "echo connected"
 ```
 
 > **给 AI 编程工具的提示**：读取 `.env` 文件获取服务器连接信息，所有部署操作通过 SSH 执行。关键路径变量：`SCRAPER_DIR`、`WEB_DIR`、`DATA_DIR`、`SCRAPER_LOG`。
@@ -200,10 +203,10 @@ ssh -p 22 ubuntu@124.156.182.215 "echo connected"
 npm run build
 
 # 上传到服务器（保留 data 目录）
-scp -r dist/* ubuntu@124.156.182.215:/tmp/kai-tak-deploy/
-ssh ubuntu@124.156.182.215 \
+scp -r dist/* $SERVER_USER@$SERVER_HOST:/tmp/kai-tak-deploy/
+ssh $SERVER_USER@$SERVER_HOST \
   "sudo rsync -av --delete --chmod=Du+rwx,Dg+rx,Do+rx,Fu+r,Fg+r,Fo+r \
-   /tmp/kai-tak-deploy/ /var/www/kai-tak-rental/ --exclude data"
+   /tmp/kai-tak-deploy/ $WEB_DIR/ --exclude data"
 ```
 
 > ⚠️ rsync 必须带 `--chmod` 确保目录有执行权限，否则 Nginx 返回 403。
@@ -212,14 +215,14 @@ ssh ubuntu@124.156.182.215 \
 
 ```bash
 # 上传爬虫脚本
-scp scraper/scrape_centanet.py ubuntu@124.156.182.215:/tmp/
-ssh ubuntu@124.156.182.215 "sudo cp /tmp/scrape_centanet.py /opt/kai-tak-scraper/"
+scp scraper/scrape_centanet.py $SERVER_USER@$SERVER_HOST:/tmp/
+ssh $SERVER_USER@$SERVER_HOST "sudo cp /tmp/scrape_centanet.py $SCRAPER_DIR/"
 
 # 手动执行一次（验证）
-ssh ubuntu@124.156.182.215 "sudo python3 /opt/kai-tak-scraper/scrape_centanet.py"
+ssh $SERVER_USER@$SERVER_HOST "sudo python3 $SCRAPER_DIR/scrape_centanet.py"
 
 # 查看日志
-ssh ubuntu@124.156.182.215 "tail -30 /var/log/kai-tak-scraper.log"
+ssh $SERVER_USER@$SERVER_HOST "tail -30 $SCRAPER_LOG"
 ```
 
 ### 服务器上的 Cron 配置
@@ -233,7 +236,7 @@ ssh ubuntu@124.156.182.215 "tail -30 /var/log/kai-tak-scraper.log"
 
 ## 数据库
 
-SQLite 数据库位于服务器 `/opt/kai-tak-scraper/rental.db`：
+SQLite 数据库位于服务器 `$SCRAPER_DIR/rental.db`：
 
 | 表名 | 说明 |
 |------|------|
@@ -243,13 +246,13 @@ SQLite 数据库位于服务器 `/opt/kai-tak-scraper/rental.db`：
 
 ```bash
 # SSH 到服务器查询数据
-ssh ubuntu@124.156.182.215 \
-  "sudo sqlite3 /opt/kai-tak-scraper/rental.db \
+ssh $SERVER_USER@$SERVER_HOST \
+  "sudo sqlite3 $SCRAPER_DIR/rental.db \
    'SELECT estate_name, COUNT(*) FROM transactions GROUP BY estate_name;'"
 
 # 导出 JSON（前端数据源）
-ssh ubuntu@124.156.182.215 \
-  "cd /opt/kai-tak-scraper && sudo python3 -c \
+ssh $SERVER_USER@$SERVER_HOST \
+  "cd $SCRAPER_DIR && sudo python3 -c \
    'from scrape_centanet import init_db, export_json; conn=init_db(); export_json(conn); conn.close()'"
 ```
 
@@ -259,13 +262,13 @@ ssh ubuntu@124.156.182.215 \
 
 | 操作 | 命令 |
 |------|------|
-| 查看爬虫日志 | `ssh ubuntu@124.156.182.215 "tail -50 /var/log/kai-tak-scraper.log"` |
-| 手动触发爬虫 | `ssh ubuntu@124.156.182.215 "sudo python3 /opt/kai-tak-scraper/scrape_centanet.py"` |
-| 查看数据库统计 | `ssh ubuntu@124.156.182.215 "sudo sqlite3 /opt/kai-tak-scraper/rental.db \"SELECT COUNT(*) FROM transactions\""` |
-| 重新导出 JSON | `ssh ubuntu@124.156.182.215 "cd /opt/kai-tak-scraper && sudo python3 -c 'from scrape_centanet import init_db,export_json; c=init_db(); export_json(c); c.close()'"` |
-| 重启统计服务 | `ssh ubuntu@124.156.182.215 "sudo systemctl restart kai-tak-analytics"` |
-| 检查 Nginx 状态 | `ssh ubuntu@124.156.182.215 "sudo nginx -t && sudo systemctl status nginx"` |
-| 修复 403 权限 | `ssh ubuntu@124.156.182.215 "sudo chmod 755 /var/www/kai-tak-rental/ /var/www/kai-tak-rental/assets/"` |
+| 查看爬虫日志 | `ssh $SERVER_USER@$SERVER_HOST "tail -50 $SCRAPER_LOG"` |
+| 手动触发爬虫 | `ssh $SERVER_USER@$SERVER_HOST "sudo python3 $SCRAPER_DIR/scrape_centanet.py"` |
+| 查看数据库统计 | `ssh $SERVER_USER@$SERVER_HOST "sudo sqlite3 $SCRAPER_DIR/rental.db \"SELECT COUNT(*) FROM transactions\""` |
+| 重新导出 JSON | `ssh $SERVER_USER@$SERVER_HOST "cd $SCRAPER_DIR && sudo python3 -c 'from scrape_centanet import init_db,export_json; c=init_db(); export_json(c); c.close()'"` |
+| 重启统计服务 | `ssh $SERVER_USER@$SERVER_HOST "sudo systemctl restart kai-tak-analytics"` |
+| 检查 Nginx 状态 | `ssh $SERVER_USER@$SERVER_HOST "sudo nginx -t && sudo systemctl status nginx"` |
+| 修复 403 权限 | `ssh $SERVER_USER@$SERVER_HOST "sudo chmod 755 $WEB_DIR/ $WEB_DIR/assets/"` |
 
 ---
 
@@ -328,8 +331,8 @@ for item in (data if isinstance(data, list) else data.get('data', data.get('resu
 
 ```bash
 # 部署爬虫 → 手动执行 → 检查数据 → 构建前端 → 部署
-scp scraper/scrape_centanet.py ubuntu@124.156.182.215:/tmp/
-ssh ubuntu@124.156.182.215 "sudo cp /tmp/scrape_centanet.py /opt/kai-tak-scraper/ && sudo python3 /opt/kai-tak-scraper/scrape_centanet.py"
+scp scraper/scrape_centanet.py $SERVER_USER@$SERVER_HOST:/tmp/
+ssh $SERVER_USER@$SERVER_HOST "sudo cp /tmp/scrape_centanet.py $SCRAPER_DIR/ && sudo python3 $SCRAPER_DIR/scrape_centanet.py"
 npm run build
 # ... 上传 dist
 ```
