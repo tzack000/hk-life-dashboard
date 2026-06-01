@@ -45,6 +45,66 @@ Cron (02:00) → Python 爬虫 → SQLite → 导出 JSON → Nginx 托管 → �
 - 爬虫用 **Node.js 解析 NUXT JS 数据**（变量名被压缩，正则无法直接提取）
 - 前端优先读服务器 JSON，失败 fallback 到 mock 数据
 
+## 需求管理：OpenSpec 工作流
+
+本项目使用 **OpenSpec** 进行规范驱动开发（Spec-Driven Development），所有需求变更必须通过 OpenSpec 流程管理。
+
+### 核心流程：Propose → Apply → Archive
+
+```
+用户提需求 → /opsx:propose → 生成规范产物 → /opsx:apply → 实现代码 → /opsx:archive → 归档
+```
+
+### 目录结构
+
+```
+openspec/
+├── changes/                    # 变更工作区
+│   ├── <change-name>/          # 当前活跃变更
+│   │   ├── proposal.md         # 提案 — 为什么做、做什么
+│   │   ├── specs/              # 规范 — 需求与验收场景
+│   │   ├── design.md           # 设计 — 技术实现方案
+│   │   └── tasks.md            # 任务 — 实现任务清单
+│   └── archive/                # 已归档变更（日期+名称）
+└── specs/                      # 项目级规范（系统描述）
+```
+
+### 常用 Slash 命令
+
+| 命令 | 说明 |
+|------|------|
+| `/opsx:propose "描述"` | 创建变更提案，自动生成 proposal + specs + design + tasks |
+| `/opsx:apply` | 按 tasks.md 清单逐步实现代码 |
+| `/opsx:archive` | 归档已完成的变更 |
+| `/opsx:continue` | 继续推进未完成的变更 |
+| `/opsx:verify` | 验证实现是否符合规范 |
+| `/opsx:explore` | 探索现有规范与代码结构 |
+
+### 操作规范
+
+1. **收到新需求时**，优先使用 `/opsx:propose` 创建变更，不要直接改代码
+2. **实现前审核**产物（proposal → specs → design → tasks），确保与用户意图对齐
+3. **按 tasks.md 逐步实现**，使用 `/opsx:apply` 执行
+4. **完成后归档** `/opsx:archive`，保持工作区整洁
+5. 归档的变更会移至 `openspec/changes/archive/`，可随时回溯
+
+### 示例
+
+```
+You: /opsx:propose "新增屯门区域房源"
+AI:  已创建 openspec/changes/add-tuen-mun/
+     ✓ proposal.md  — 动机与目标
+     ✓ specs/       — 需求与验收场景
+     ✓ design.md    — 技术方案
+     ✓ tasks.md     — 任务清单
+
+You: /opsx:apply
+AI:  按 tasks.md 逐步实现...
+
+You: /opsx:archive
+AI:  已归档至 openspec/changes/archive/2026-06-01-add-tuen-mun/
+```
+
 ## 新增楼盘步骤
 
 1. `src/types/rental.ts` — District 类型加新区域名

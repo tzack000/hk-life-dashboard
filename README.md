@@ -138,16 +138,42 @@ kai-tak-rental/
 │   └── components/ui/             # shadcn/ui 组件库（53个组件）
 ├── scraper/
 │   └── scrape_centanet.py         # 爬虫脚本（含 Node.js NUXT 解析器）
+├── openspec/                      # OpenSpec 规范驱动开发
+│   ├── changes/                   # 变更工作区（活跃 + 归档）
+│   └── specs/                     # 项目级规范
+├── .claude/                       # Claude Code 命令 & 技能
+├── .codebuddy/                    # Codebuddy 命令 & 技能
 ├── public/
 │   └── favicon.svg
 ├── .env.example                   # 环境变量模板
 ├── .env                           # 环境变量（不入库）
+├── CLAUDE.md                      # AI 编程工具上下文
 ├── index.html
 ├── vite.config.ts
 ├── tailwind.config.js
 ├── package.json
 └── README.md
 ```
+
+---
+
+## 需求管理
+
+本项目使用 **OpenSpec** 进行规范驱动开发，所有需求变更通过 OpenSpec 流程管理：
+
+```
+Propose（提案）→ Apply（实现）→ Archive（归档）
+```
+
+| 命令 | 说明 |
+|------|------|
+| `/opsx:propose "描述"` | 创建变更提案，生成 proposal + specs + design + tasks |
+| `/opsx:apply` | 按 tasks.md 清单逐步实现代码 |
+| `/opsx:archive` | 归档已完成的变更 |
+| `/opsx:continue` | 继续推进未完成的变更 |
+| `/opsx:verify` | 验证实现是否符合规范 |
+
+详细指引见 `CLAUDE.md`。
 
 ---
 
