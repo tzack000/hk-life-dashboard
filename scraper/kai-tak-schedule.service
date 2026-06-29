@@ -1,0 +1,18 @@
+[Unit]
+Description=HK Life Dashboard Family Schedule API
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/kai-tak-scraper
+Environment=SCHEDULE_API_PORT=8902
+Environment=SCHEDULE_DB_PATH=/opt/kai-tak-scraper/schedule.db
+# 在此固定写操作密钥（与 .env 的 SCHEDULE_API_KEY 一致）
+Environment=SCHEDULE_API_KEY=CHANGE_ME_TO_A_LONG_RANDOM_SECRET
+ExecStart=/usr/bin/python3 /opt/kai-tak-scraper/schedule_server.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

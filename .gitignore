@@ -5,3 +5,7 @@ dist/
 .DS_Store
 /tmp/
 .env
+
+# 隐私内容：学校原始通知与个人手机截图，勿提交到公开仓库
+references/
+issues/
