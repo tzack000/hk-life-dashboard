@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Building2, CalendarHeart } from 'lucide-react';
+import { Building2, CalendarHeart, Plane } from 'lucide-react';
 import { useRentalData } from '@/hooks/use-rental-data';
 import { Header } from '@/sections/Header';
 import { StatsOverview } from '@/sections/StatsOverview';
@@ -7,12 +7,13 @@ import { RentChart } from '@/sections/RentChart';
 import { RentTrendChart } from '@/sections/RentTrendChart';
 import { TransactionTable } from '@/sections/TransactionTable';
 import { FamilySchedule } from '@/sections/FamilySchedule';
+import { TripSchedule } from '@/sections/TripSchedule';
 import { cn } from '@/lib/utils';
 
-type View = 'property' | 'family';
+type View = 'property' | 'family' | 'trip';
 
 function App() {
-  const [view, setView] = useState<View>('family');
+  const [view, setView] = useState<View>('trip');
 
   const {
     txType,
@@ -45,6 +46,7 @@ function App() {
       : '数据仅供参考，不构成任何投资或租赁建议 · 数据来源为模拟生成';
 
   const navItems: { value: View; label: string; icon: typeof Building2 }[] = [
+    { value: 'trip', label: '近期行程', icon: Plane },
     { value: 'family', label: '家庭日程', icon: CalendarHeart },
     { value: 'property', label: '房产看板', icon: Building2 },
   ];
@@ -118,6 +120,13 @@ function App() {
             </p>
           </div>
         </footer>
+      </div>
+
+      {/* 近期行程视图（保持挂载，切换不重置筛选状态） */}
+      <div className={cn(view === 'trip' ? 'block' : 'hidden')}>
+        <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+          <TripSchedule />
+        </main>
       </div>
 
       {/* 家庭日程视图（保持挂载，切换不重置筛选状态） */}

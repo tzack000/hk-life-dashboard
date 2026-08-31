@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { CalendarDays, Clock, MapPin, StickyNote } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { CalendarDays, Clock, Luggage, MapPin, StickyNote } from 'lucide-react';
+import { format } from 'date-fns';
 import type { DayButton } from 'react-day-picker';
 
 import { Calendar } from '@/components/ui/calendar';
@@ -8,6 +8,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useFamilySchedule, type CategoryFilter } from '@/hooks/use-family-schedule';
+import {
+  formatTripDateRange,
+  tripCountdownText,
+  useUpcomingTrip,
+  type TripWithState,
+} from '@/hooks/use-trips';
 import {
   CATEGORY_BADGE,
   CATEGORY_COLOR,
@@ -108,6 +114,33 @@ function EventItem({
   );
 }
 
+/** 近期行程提示条：展示即将到来 / 进行中的行程摘要 */
+function TripBanner({ state }: { state: TripWithState }) {
+  const { trip } = state;
+  return (
+    <div className="rounded-lg border border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#1E40AF]">
+          <Luggage className="h-4 w-4" />
+          {trip.title}
+        </p>
+        <span className="inline-flex shrink-0 items-center rounded-full bg-[#1E40AF] px-2 py-0.5 text-[11px] font-medium text-white">
+          {tripCountdownText(state)}
+        </span>
+      </div>
+      <p className="mt-1 text-xs text-[#475569]">
+        {formatTripDateRange(trip.startDate, trip.endDate)}
+        <span className="text-[#94A3B8]">
+          {' '}
+          · {state.totalDays} 天 {state.totalDays - 1} 晚 · {trip.travelers}
+        </span>
+      </p>
+      <p className="mt-1 text-xs leading-relaxed text-[#64748B]">{trip.summary}</p>
+      <p className="mt-1 text-xs text-[#94A3B8]">{trip.destination}</p>
+    </div>
+  );
+}
+
 export function FamilySchedule() {
   const {
     dataSource,
@@ -122,6 +155,8 @@ export function FamilySchedule() {
     upcomingEvents,
     upcomingDays,
   } = useFamilySchedule();
+
+  const upcomingTrip = useUpcomingTrip();
 
   // 自定义日期按钮：在日期下方渲染分类圆点
   const DayButtonWithDots = useMemo(() => {
@@ -261,6 +296,7 @@ export function FamilySchedule() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
+              {upcomingTrip && <TripBanner state={upcomingTrip} />}
               {upcomingEvents.length > 0 ? (
                 upcomingEvents.map((ev) => <EventItem key={ev.id} ev={ev} highlight />)
               ) : (
