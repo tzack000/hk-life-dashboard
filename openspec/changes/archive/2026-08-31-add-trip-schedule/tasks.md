@@ -16,6 +16,6 @@
 - [ ] 3.2 本地 `npm run dev` 手测：打开根路径默认进入家庭日程、三视图切换、家庭日程顶部行程提示条显示/隐藏、行程类型筛选
 
 ## 4. 部署与归档
-- [ ] 4.1 `git commit` 代码修正与规范产物
-- [ ] 4.2 部署前端（注意 `--exclude data`）
-- [ ] 4.3 归档变更并把两份 delta 同步到 `openspec/specs/`
+- [x] 4.1 `git commit` 代码修正与规范产物
+- [x] 4.2 部署前端（注意 `--exclude data`）
+- [x] 4.3 归档变更并把两份 delta 同步到 `openspec/specs/`
