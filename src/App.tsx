@@ -13,7 +13,9 @@ import { cn } from '@/lib/utils';
 type View = 'property' | 'family' | 'trip';
 
 function App() {
-  const [view, setView] = useState<View>('trip');
+  // 默认视图按 openspec/specs/family-schedule 的「默认首页」需求固定为家庭日程，
+  // 「近期行程」仅在导航中居首，不作为默认落点
+  const [view, setView] = useState<View>('family');
 
   const {
     txType,
