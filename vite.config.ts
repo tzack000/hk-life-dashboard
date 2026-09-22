@@ -4,7 +4,7 @@ import { defineConfig } from "vite"
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: './',
+  base: '/',
   plugins: [react()],
   resolve: {
     alias: {
@@ -14,5 +14,21 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     allowedHosts: true,
+    proxy: {
+      '/cdn-audio': {
+        target: 'https://cdn.frostyrhymes.com',
+        changeOrigin: true,
+        headers: { Referer: 'https://www.frostyrhymes.com/' },
+        rewrite: (requestPath) => requestPath.replace(/^\/cdn-audio/, ''),
+        configure: (proxy) => {
+          proxy.on('proxyRes', (proxyRes, req) => {
+            if ((req.url ?? '').toLowerCase().endsWith('.pdf')) {
+              proxyRes.headers['content-type'] = 'application/pdf';
+              proxyRes.headers['content-disposition'] = 'inline';
+            }
+          });
+        },
+      },
+    },
   },
 });
