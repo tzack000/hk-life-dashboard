@@ -1,21 +1,20 @@
-import { useState } from 'react';
-import { Building2, CalendarHeart, Plane } from 'lucide-react';
 import { useRentalData } from '@/hooks/use-rental-data';
+import { useRoute } from '@/hooks/use-route';
+import { ROUTES } from '@/lib/routes';
+import { cn } from '@/lib/utils';
 import { Header } from '@/sections/Header';
+import { HomePage } from '@/sections/HomePage';
+import { FamilySchedule } from '@/sections/FamilySchedule';
+import { SiteNav } from '@/sections/SiteNav';
 import { StatsOverview } from '@/sections/StatsOverview';
 import { RentChart } from '@/sections/RentChart';
 import { RentTrendChart } from '@/sections/RentTrendChart';
 import { TransactionTable } from '@/sections/TransactionTable';
-import { FamilySchedule } from '@/sections/FamilySchedule';
+import { StudyResources } from '@/sections/StudyResources';
 import { TripSchedule } from '@/sections/TripSchedule';
-import { cn } from '@/lib/utils';
-
-type View = 'property' | 'family' | 'trip';
 
 function App() {
-  // 默认视图按 openspec/specs/family-schedule 的「默认首页」需求固定为家庭日程，
-  // 「近期行程」仅在导航中居首，不作为默认落点
-  const [view, setView] = useState<View>('family');
+  const { path, exam, navigate } = useRoute();
 
   const {
     txType,
@@ -47,42 +46,14 @@ function App() {
       ? '数据加载中...'
       : '数据仅供参考，不构成任何投资或租赁建议 · 数据来源为模拟生成';
 
-  const navItems: { value: View; label: string; icon: typeof Building2 }[] = [
-    { value: 'trip', label: '近期行程', icon: Plane },
-    { value: 'family', label: '家庭日程', icon: CalendarHeart },
-    { value: 'property', label: '房产看板', icon: Building2 },
-  ];
-
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
-      {/* 顶层视图切换导航 */}
-      <nav className="border-b bg-white">
-        <div className="mx-auto flex max-w-7xl items-center gap-2 px-4 py-2 sm:px-6 lg:px-8">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = view === item.value;
-            return (
-              <button
-                key={item.value}
-                onClick={() => setView(item.value)}
-                className={cn(
-                  'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all sm:text-sm',
-                  active
-                    ? 'bg-gradient-to-br from-[#1E40AF] to-[#3B82F6] text-white shadow-sm'
-                    : 'text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0F172A]',
-                )}
-                aria-current={active ? 'page' : undefined}
-              >
-                <Icon className="h-4 w-4" />
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
+      <SiteNav path={path} navigate={navigate} />
 
-      {/* 房产看板视图 */}
-      <div className={cn(view === 'property' ? 'block' : 'hidden')}>
+      {path === ROUTES.home && <HomePage navigate={navigate} />}
+
+      {/* 三个子页面保持挂载，来回切换不重置筛选 */}
+      <div className={cn(path === ROUTES.property ? 'block' : 'hidden')}>
         <Header
           txType={txType}
           setTxType={setTxType}
@@ -124,19 +95,19 @@ function App() {
         </footer>
       </div>
 
-      {/* 近期行程视图（保持挂载，切换不重置筛选状态） */}
-      <div className={cn(view === 'trip' ? 'block' : 'hidden')}>
+      <div className={cn(path === ROUTES.trip ? 'block' : 'hidden')}>
         <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
           <TripSchedule />
         </main>
       </div>
 
-      {/* 家庭日程视图（保持挂载，切换不重置筛选状态） */}
-      <div className={cn(view === 'family' ? 'block' : 'hidden')}>
+      <div className={cn(path === ROUTES.family ? 'block' : 'hidden')}>
         <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
           <FamilySchedule />
         </main>
       </div>
+
+      {path === ROUTES.learn && <StudyResources exam={exam} navigate={navigate} />}
     </div>
   );
 }

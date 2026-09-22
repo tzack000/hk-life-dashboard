@@ -55,11 +55,8 @@ export function Header({
             </div>
             <div>
               <h1 className="text-base font-bold tracking-tight text-[#0F172A] sm:text-xl">
-                香港生活看板
+                房产看板
               </h1>
-              <p className="hidden text-xs text-[#94A3B8] sm:block">
-                HK Living Dashboard
-              </p>
             </div>
           </div>
 
