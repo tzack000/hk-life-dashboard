@@ -1,8 +1,19 @@
-# 香港生活看板 | HK Life Dashboard
+# ZT Life
 
-香港多区域房产租赁成交价格展示网站，数据每日自动从**中原地产**爬取更新。
+个人生活看板：从首页进入家庭日程、近期行程、房产看板和学习资源。
 
 **在线访问：** 见 `.env` 中的 `SITE_DOMAIN`
+
+| 路径 | 页面 | 说明 |
+|------|------|------|
+| `/` | 首页 | 站点名称、香港山海风光、四个入口卡片 |
+| `/family` | 家庭日程 | 学校、培训班、其它事项；优先读日程 API |
+| `/trip` | 近期行程 | 仓库内静态行程（当前为 2026 冲绳与宫古岛） |
+| `/property` | 房产看板 | 多区域租赁成交，数据每日从中原地产爬取 |
+| `/learn` | 学习资源 | 剑桥雅思 4–21 套题列表 |
+| `/learn/4` … `/learn/21` | 某一套真题 | 页内播放听力，下方显示对应 PDF |
+
+未知路径会回到首页。导航顺序为：首页、家庭日程、近期行程、房产看板、学习资源。
 
 ---
 
@@ -12,8 +23,11 @@
 ┌──────────────────────────────────────────────────────────────┐
 │                      用户浏览器                               │
 │  访问 $SITE_DOMAIN                                           │
-│  前端 fetch ./data/transactions.json → 渲染图表/表格          │
-│  无服务器数据时 fallback 到内置模拟数据                        │
+│  /              首页                                         │
+│  /family        家庭日程  → GET /api/schedule/events         │
+│  /trip          近期行程  → 前端静态数据                      │
+│  /property      房产看板  → fetch /data/transactions.json    │
+│  /learn/:n      学习资源  → /cdn-audio/...（听力 zip / PDF） │
 └────────────────────────┬─────────────────────────────────────┘
                          │ HTTP/HTTPS
                          ▼
@@ -21,69 +35,61 @@
 │  远程服务器 ($SERVER_HOST, Ubuntu 24.04)                     │
 │                                                              │
 │  Nginx ─ 静态托管 + 反向代理                                  │
-│    ├── /              → $WEB_DIR/index.html                  │
-│    ├── /assets/       → JS/CSS 静态资源                      │
-│    ├── /data/         → transactions.json (前端数据源)        │
-│    ├── /api/track     → 反代 → 127.0.0.1:8901 (PV/UV 统计)  │
-│    └── /api/stats     → 反代 → 127.0.0.1:8901 (需 Basic Auth)│
+│    ├── /              → SPA（try_files → index.html）        │
+│    ├── /assets/       → JS / CSS / pdf.js worker（.mjs）     │
+│    ├── /data/         → transactions.json                    │
+│    ├── /api/track     → 127.0.0.1:8901  PV/UV 统计          │
+│    ├── /api/stats     → 127.0.0.1:8901  需 Basic Auth       │
+│    ├── /api/schedule/ → 127.0.0.1:8902  家庭日程 CRUD       │
+│    └── /cdn-audio/    → https://cdn.frostyrhymes.com         │
+│                         （带 Referer，转发 Range）            │
 │                                                              │
-│  ┌─────────────────────────────────────────────────────┐     │
-│  │  $SCRAPER_DIR/                                      │     │
-│  │  ├── scrape_centanet.py    ← 爬虫脚本               │     │
-│  │  ├── rental.db             ← SQLite 数据库           │     │
-│  │  ├── analytics_server.py   ← 统计 API 服务          │     │
-│  │  └── analytics.db          ← 统计数据库              │     │
-│  └─────────────────────────────────────────────────────┘     │
+│  $SCRAPER_DIR/                                               │
+│    ├── scrape_centanet.py    房产爬虫                        │
+│    ├── rental.db             成交库                          │
+│    ├── analytics_server.py   统计 API（8901）                │
+│    ├── analytics.db                                          │
+│    ├── schedule_server.py    日程 API（8902）                │
+│    └── schedule.db                                           │
 │                                                              │
-│  ┌─────────────────────────────────────────────────────┐     │
-│  │  $WEB_DIR/                                          │     │
-│  │  ├── index.html            ← 前端入口               │     │
-│  │  ├── admin.html            ← 管理页                 │     │
-│  │  ├── assets/               ← JS/CSS                 │     │
-│  │  └── data/                                         │     │
-│  │      └── transactions.json ← 爬虫导出给前端的数据    │     │
-│  └─────────────────────────────────────────────────────┘     │
+│  $WEB_DIR/                                                   │
+│    ├── index.html / assets / covers / dragon-back.jpg        │
+│    ├── admin.html                                            │
+│    └── data/transactions.json                                │
 │                                                              │
-│  定时任务 (root crontab):                                     │
-│    0 2 * * *  → 爬虫 → SQLite → 导出 JSON → 前端读取         │
-│                                                              │
-│  系统服务:                                                    │
-│    kai-tak-analytics.service  → 统计 API (port 8901)         │
+│  定时任务: 0 2 * * *  爬虫 → SQLite → 导出 JSON              │
+│  系统服务: kai-tak-analytics.service / kai-tak-schedule.service │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-### 数据流
+### 房产成交数据流
 
 ```
 Cron (02:00)
-  │
-  ▼
-Python 爬虫 (scrape_centanet.py)
-  │  访问中原地产楼盘页 → Node.js 解析 NUXT JS 数据 → 提取租赁成交
-  ▼
-SQLite (rental.db)
-  │  INSERT OR IGNORE 去重写入
-  ▼
-导出 JSON (transactions.json)
-  │  SELECT 最新 2000 条 → 写入 $DATA_DIR/
-  ▼
-前端 fetch
-  │  按 区域/月份/楼盘 过滤渲染
-  ▼
-用户看到数据
+  → Python 爬虫 scrape_centanet.py（Node.js 解析中原 NUXT 数据）
+  → SQLite rental.db（INSERT OR IGNORE 去重）
+  → 导出 transactions.json
+  → 前端 /property 优先读服务器 JSON，失败则用 mock-transactions.ts
 ```
+
+### 其它数据来源
+
+- **家庭日程**：生产环境读 `/api/schedule`；写操作需请求头 `X-API-Key`（`.env` 的 `SCHEDULE_API_KEY`）。前端拉不到数据时降级到 `src/data/family-events.ts`。
+- **近期行程**：`src/data/trips/` 中的 TypeScript 模块，不走后端。
+- **学习资源**：套题目录在 `src/data/study-resources.ts`，音频 zip 与 PDF 经 `/cdn-audio` 代理到 frostyrhymes CDN。仓库不存放原文件。
 
 ### 关键技术细节
 
-1. **NUXT 解析**：中原地产页面使用 Nuxt.js SSR，`window.__NUXT__` 数据是压缩的 JS 函数（变量名被替换为短标识符如 `cd`、`ea`），无法用正则直接提取。爬虫将 NUXT 数据写入临时文件，调用 **Node.js** 执行 JS 解析，自动还原变量映射，提取 `recentTransactions`。
-
-2. **数据去重**：成交记录以 `centa-{id}` 为主键 `INSERT OR IGNORE`，不会重复写入。
-
-3. **前端 fallback**：优先读取 `./data/transactions.json`（服务器真实数据），无数据或加载失败时 fallback 到本地 `mock-transactions.ts` 生成的模拟数据。
+1. **SPA 路由**：History API（`src/hooks/use-route.ts`），不用 react-router。Vite `base` 为 `/`。Nginx `location /` 使用 `try_files $uri $uri/ /index.html`。
+2. **NUXT 解析**：中原地产 `window.__NUXT__` 是压缩 JS，正则抽不出来。爬虫用 Node.js 执行后还原 `recentTransactions`。
+3. **成交去重**：主键 `centa-{id}`，`INSERT OR IGNORE`。
+4. **听力播放**：zip 内是 deflate 条目。浏览器用 Range 读目录，再按条目解压后用 `<audio>` 播放。
+5. **页内 PDF**：pdf.js 画到 canvas。线上 `.mjs` 必须按 JavaScript 返回，否则 worker 无法加载。
+6. **CDN 代理**：`cdn.frostyrhymes.com` 校验 Referer `https://www.frostyrhymes.com/`。开发环境由 Vite `server.proxy` 处理，生产环境由 Nginx `location /cdn-audio/` 处理。
 
 ---
 
-## 覆盖区域与楼盘
+## 覆盖区域与楼盘（房产看板）
 
 | 区域 | 楼盘数 | 代表楼盘 |
 |------|--------|----------|
@@ -97,21 +103,24 @@ SQLite (rental.db)
 ## 技术栈
 
 ### 前端
-- React 19 + TypeScript 5.9
-- Vite 7
-- Tailwind CSS 3 + shadcn/ui
-- Recharts 图表
-- Lucide React 图标
+
+- React 19 + TypeScript
+- Vite 7 + Tailwind CSS + shadcn/ui
+- Recharts、Lucide React
+- pdf.js（`pdfjs-dist`）页内阅读 PDF
 
 ### 后端（服务器端）
+
 - Python 3 爬虫（requests + Node.js NUXT 解析）
-- SQLite 数据库
-- Python 统计 API 服务（analytics_server.py, port 8901）
-- Cron 定时任务 + systemd 服务
+- SQLite
+- 统计 API `analytics_server.py`（8901）
+- 日程 API `schedule_server.py`（8902）
+- Cron + systemd
 
 ### 部署
-- Nginx（HTTP/HTTPS 静态托管 + 反向代理）
-- SSL 证书（/etc/nginx/ssl/kai-tak.crt）
+
+- Nginx（静态托管、SPA、反向代理、CDN 代理）
+- SSL：`/etc/nginx/ssl/kai-tak.crt`
 - Ubuntu 24.04
 
 ---
@@ -119,39 +128,44 @@ SQLite (rental.db)
 ## 项目结构
 
 ```
-kai-tak-rental/
+hk-life-dashboard/
 ├── src/
-│   ├── App.tsx                    # 主页面布局
+│   ├── App.tsx                      # 按路径挂载首页与各子页面
 │   ├── hooks/
-│   │   └── use-rental-data.ts     # 核心数据 Hook（状态管理 + 数据加载）
+│   │   ├── use-route.ts             # History API 路由
+│   │   ├── use-rental-data.ts       # 房产成交
+│   │   ├── use-family-schedule.ts   # 家庭日程（API + mock）
+│   │   └── use-trips.ts             # 近期行程
+│   ├── lib/
+│   │   ├── routes.ts                # 路径常量与解析
+│   │   └── zip-audio.ts             # 按 Range 解压听力 zip
 │   ├── sections/
-│   │   ├── Header.tsx             # 导航栏 + 筛选器（区域/月份/楼盘/房型）
-│   │   ├── StatsOverview.tsx      # 统计概览卡片
-│   │   ├── RentChart.tsx          # 各楼盘平均月租对比图
-│   │   ├── RentTrendChart.tsx     # 过去一年尺价趋势折线图
-│   │   └── TransactionTable.tsx   # 交易明细表格（桌面表格+移动端卡片）
+│   │   ├── SiteNav.tsx              # 顶栏导航
+│   │   ├── HomePage.tsx             # 首页
+│   │   ├── FamilySchedule.tsx       # 家庭日程
+│   │   ├── TripSchedule.tsx         # 近期行程
+│   │   ├── Header.tsx               # 房产看板筛选
+│   │   ├── StatsOverview.tsx / RentChart.tsx / RentTrendChart.tsx / TransactionTable.tsx
+│   │   ├── StudyResources.tsx       # 学习资源列表与套题页
+│   │   └── ExamPdf.tsx              # pdf.js 阅读器
 │   ├── data/
-│   │   ├── estates.ts             # 楼盘基础数据 + 区域列表 + 过滤函数
-│   │   └── mock-transactions.ts   # 模拟数据生成器（确定性伪随机）
+│   │   ├── estates.ts / mock-transactions.ts
+│   │   ├── family-events.ts         # 日程 API 失败时的降级数据
+│   │   ├── trips/okinawa-2026.ts
+│   │   └── study-resources.ts       # 雅思 4–21 资源路径
 │   ├── types/
-│   │   └── rental.ts              # TypeScript 类型定义
-│   └── components/ui/             # shadcn/ui 组件库（53个组件）
+│   └── components/ui/
 ├── scraper/
-│   └── scrape_centanet.py         # 爬虫脚本（含 Node.js NUXT 解析器）
-├── openspec/                      # OpenSpec 规范驱动开发
-│   ├── changes/                   # 变更工作区（活跃 + 归档）
-│   └── specs/                     # 项目级规范
-├── .claude/                       # Claude Code 命令 & 技能
-├── .codebuddy/                    # Codebuddy 命令 & 技能
+│   ├── scrape_centanet.py
+│   ├── analytics_server.py
+│   ├── schedule_server.py
+│   └── kai-tak-schedule.service
+├── openspec/                        # 规范：site-home / family-schedule / trip-schedule
 ├── public/
-│   └── favicon.svg
-├── .env.example                   # 环境变量模板
-├── .env                           # 环境变量（不入库）
-├── CLAUDE.md                      # AI 编程工具上下文
-├── index.html
-├── vite.config.ts
-├── tailwind.config.js
-├── package.json
+│   ├── dragon-back.jpg              # 首页风光
+│   └── covers/                      # 入口卡片图
+├── .env.example
+├── CLAUDE.md / AGENTS.md
 └── README.md
 ```
 
@@ -159,7 +173,7 @@ kai-tak-rental/
 
 ## 需求管理
 
-本项目使用 **OpenSpec** 进行规范驱动开发，所有需求变更通过 OpenSpec 流程管理：
+本项目使用 **OpenSpec** 管理需求变更：
 
 ```
 Propose（提案）→ Apply（实现）→ Archive（归档）
@@ -167,56 +181,41 @@ Propose（提案）→ Apply（实现）→ Archive（归档）
 
 | 命令 | 说明 |
 |------|------|
-| `/opsx:propose "描述"` | 创建变更提案，生成 proposal + specs + design + tasks |
-| `/opsx:apply` | 按 tasks.md 清单逐步实现代码 |
-| `/opsx:archive` | 归档已完成的变更 |
-| `/opsx:continue` | 继续推进未完成的变更 |
-| `/opsx:verify` | 验证实现是否符合规范 |
+| `/opsx:propose "描述"` | 创建变更提案 |
+| `/opsx:apply` | 按 tasks.md 实现 |
+| `/opsx:archive` | 归档已完成变更 |
+| `/opsx:continue` | 继续未完成变更 |
+| `/opsx:verify` | 对照规范验收 |
 
-详细指引见 `CLAUDE.md`。
+当前主规范在 `openspec/specs/`：`site-home`、`family-schedule`、`trip-schedule`。详细指引见 `CLAUDE.md`。
 
 ---
 
 ## 本地开发
 
 ```bash
-# 安装依赖
 npm install
-
-# 启动开发服务器（http://localhost:5173）
-npm run dev
-
-# 构建生产版本
+npm run dev      # 默认 http://localhost:5173
 npm run build
 ```
 
-本地开发时，前端会使用 mock 数据（模拟数据生成器），无需服务器。
+- 房产看板：本地无 `transactions.json` 时使用 mock 成交数据。
+- 家庭日程：Vite 不代理 `/api/schedule`。未另开 `schedule_server.py` 时会降级到 `family-events.ts`（学校假日可能比生产环境少）。
+- 学习资源：Vite 将 `/cdn-audio` 代理到 CDN，并带上允许的 Referer，因此本地可以播听力和打开 PDF。
 
 ---
 
 ## 环境配置（首次使用必读）
 
-本项目使用 `.env` 文件管理服务器连接信息。**首次打开项目时**，请完成以下配置：
-
 ```bash
-# 1. 复制环境变量模板
 cp .env.example .env
+# 填写 SERVER_HOST / SERVER_USER / SERVER_PORT / SITE_DOMAIN
+# 以及 SCRAPER_DIR / WEB_DIR / DATA_DIR / SCRAPER_LOG / SCHEDULE_API_KEY
 
-# 2. 编辑 .env，填入实际的服务器 IP、用户名、域名等
-#    SERVER_HOST=your_server_ip
-#    SERVER_USER=your_username
-#    SERVER_PORT=22
-#    SITE_DOMAIN=your-domain.com
-#    SCRAPER_DIR=/opt/kai-tak-scraper
-#    WEB_DIR=/var/www/kai-tak-rental
-#    DATA_DIR=/var/www/kai-tak-rental/data
-#    SCRAPER_LOG=/var/log/kai-tak-scraper.log
-
-# 3. 验证 SSH 连接（需已配置密钥或密码）
 ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "echo connected"
 ```
 
-> **给 AI 编程工具的提示**：读取 `.env` 文件获取服务器连接信息，所有部署操作通过 SSH 执行。关键路径变量：`SCRAPER_DIR`、`WEB_DIR`、`DATA_DIR`、`SCRAPER_LOG`。
+> **给 AI 编程工具的提示**：从 `.env` 读服务器信息，所有部署通过 SSH 执行。不要把 `SCHEDULE_API_KEY` 写进对话或提交。目标环境是个人腾讯云 CVM，不走 ioa-ssh。
 
 ---
 
@@ -225,29 +224,23 @@ ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "echo connected"
 ### 前端部署
 
 ```bash
-# 本地构建
 npm run build
-
-# 上传到服务器（保留 data 目录）
 scp -r dist/* $SERVER_USER@$SERVER_HOST:/tmp/kai-tak-deploy/
 ssh $SERVER_USER@$SERVER_HOST \
   "sudo rsync -av --delete --chmod=Du+rwx,Dg+rx,Do+rx,Fu+r,Fg+r,Fo+r \
    /tmp/kai-tak-deploy/ $WEB_DIR/ --exclude data"
 ```
 
-> ⚠️ rsync 必须带 `--chmod` 确保目录有执行权限，否则 Nginx 返回 403。
+> ⚠️ rsync 必须带 `--chmod`，否则目录缺执行权限，Nginx 返回 403。必须 `--exclude data`，以免删掉服务器上的 `transactions.json`。
+
+部署后如果学习资源 PDF 打不开，检查 Nginx 是否把 `.mjs` 当作 `application/javascript`，以及是否存在 `/cdn-audio/` 代理。
 
 ### 爬虫部署
 
 ```bash
-# 上传爬虫脚本
 scp scraper/scrape_centanet.py $SERVER_USER@$SERVER_HOST:/tmp/
 ssh $SERVER_USER@$SERVER_HOST "sudo cp /tmp/scrape_centanet.py $SCRAPER_DIR/"
-
-# 手动执行一次（验证）
 ssh $SERVER_USER@$SERVER_HOST "sudo python3 $SCRAPER_DIR/scrape_centanet.py"
-
-# 查看日志
 ssh $SERVER_USER@$SERVER_HOST "tail -30 $SCRAPER_LOG"
 ```
 
@@ -262,21 +255,21 @@ ssh $SERVER_USER@$SERVER_HOST "tail -30 $SCRAPER_LOG"
 
 ## 数据库
 
-SQLite 数据库位于服务器 `$SCRAPER_DIR/rental.db`：
+SQLite 位于服务器 `$SCRAPER_DIR/`：
 
-| 表名 | 说明 |
-|------|------|
-| `estates` | 楼盘基础信息（32条） |
-| `transactions` | 租赁成交记录（持续积累，主键 `centa-{id}` 去重） |
-| `scrape_logs` | 爬虫运行日志 |
+| 库 | 表 | 说明 |
+|----|----|------|
+| `rental.db` | `estates` | 楼盘基础信息（32 条） |
+| `rental.db` | `transactions` | 租赁成交，主键 `centa-{id}` |
+| `rental.db` | `scrape_logs` | 爬虫日志 |
+| `schedule.db` | 日程事件 | 学校 / 培训班 / 其它 |
+| `analytics.db` | 访问统计 | PV/UV |
 
 ```bash
-# SSH 到服务器查询数据
 ssh $SERVER_USER@$SERVER_HOST \
   "sudo sqlite3 $SCRAPER_DIR/rental.db \
    'SELECT estate_name, COUNT(*) FROM transactions GROUP BY estate_name;'"
 
-# 导出 JSON（前端数据源）
 ssh $SERVER_USER@$SERVER_HOST \
   "cd $SCRAPER_DIR && sudo python3 -c \
    'from scrape_centanet import init_db, export_json; conn=init_db(); export_json(conn); conn.close()'"
@@ -290,11 +283,12 @@ ssh $SERVER_USER@$SERVER_HOST \
 |------|------|
 | 查看爬虫日志 | `ssh $SERVER_USER@$SERVER_HOST "tail -50 $SCRAPER_LOG"` |
 | 手动触发爬虫 | `ssh $SERVER_USER@$SERVER_HOST "sudo python3 $SCRAPER_DIR/scrape_centanet.py"` |
-| 查看数据库统计 | `ssh $SERVER_USER@$SERVER_HOST "sudo sqlite3 $SCRAPER_DIR/rental.db \"SELECT COUNT(*) FROM transactions\""` |
+| 查看成交条数 | `ssh $SERVER_USER@$SERVER_HOST "sudo sqlite3 $SCRAPER_DIR/rental.db \"SELECT COUNT(*) FROM transactions\""` |
 | 重新导出 JSON | `ssh $SERVER_USER@$SERVER_HOST "cd $SCRAPER_DIR && sudo python3 -c 'from scrape_centanet import init_db,export_json; c=init_db(); export_json(c); c.close()'"` |
 | 重启统计服务 | `ssh $SERVER_USER@$SERVER_HOST "sudo systemctl restart kai-tak-analytics"` |
-| 检查 Nginx 状态 | `ssh $SERVER_USER@$SERVER_HOST "sudo nginx -t && sudo systemctl status nginx"` |
-| 修复 403 权限 | `ssh $SERVER_USER@$SERVER_HOST "sudo chmod 755 $WEB_DIR/ $WEB_DIR/assets/"` |
+| 重启日程服务 | `ssh $SERVER_USER@$SERVER_HOST "sudo systemctl restart kai-tak-schedule"` |
+| 检查 Nginx | `ssh $SERVER_USER@$SERVER_HOST "sudo nginx -t && sudo systemctl status nginx"` |
+| 修复 403 | `ssh $SERVER_USER@$SERVER_HOST "sudo chmod 755 $WEB_DIR/ $WEB_DIR/assets/"` |
 
 ---
 
@@ -303,10 +297,8 @@ ssh $SERVER_USER@$SERVER_HOST \
 ### 1. 前端（src/data/estates.ts）
 
 ```typescript
-// 1. districts 数组添加新区域名
 export const districts: District[] = ['启德', '荃湾西', '大埔墟', '将军澳', '新区域名'];
 
-// 2. estates 数组添加新楼盘对象
 {
   id: 'estate-id',
   name: '楼盘英文名 (中文名)',
@@ -317,31 +309,25 @@ export const districts: District[] = ['启德', '荃湾西', '大埔墟', '将�
   completionYear: 年份,
 }
 
-// 3. types/rental.ts 的 District 类型添加新区域名
+// types/rental.ts 的 District 类型同步加上新区域名
 ```
 
 ### 2. 模拟数据（src/data/mock-transactions.ts）
 
 ```typescript
-// estatePremiums 对象添加新楼盘溢价系数
-'楼盘名': 1.0,  // 1.0 为基准，高于1溢价，低于1折价
+'楼盘名': 1.0,  // 1.0 为基准
 ```
 
 ### 3. 爬虫（scraper/scrape_centanet.py）
 
 ```python
-# 1. ESTATES_CONFIG 添加新楼盘（需先在中原地产查到 typeCode）
 "estate-id": ("标准名称", "中原繁体名称", "typeCode"),
-
-# 2. init_db() 的 estates_data 列表添加记录
-# 3. scrape_all_transactions() 的 district_map 添加映射
-# 4. district_counts 添加新区域键
+# 同时改 init_db()、district_map、district_counts
 ```
 
-**查找 typeCode 方法**：
+**查找 typeCode：**
 
 ```bash
-# 在服务器上执行
 python3 -c "
 import requests
 resp = requests.post('https://hk.centanet.com/findproperty/api/Estate/Search',
@@ -356,11 +342,10 @@ for item in (data if isinstance(data, list) else data.get('data', data.get('resu
 ### 4. 部署验证
 
 ```bash
-# 部署爬虫 → 手动执行 → 检查数据 → 构建前端 → 部署
 scp scraper/scrape_centanet.py $SERVER_USER@$SERVER_HOST:/tmp/
 ssh $SERVER_USER@$SERVER_HOST "sudo cp /tmp/scrape_centanet.py $SCRAPER_DIR/ && sudo python3 $SCRAPER_DIR/scrape_centanet.py"
 npm run build
-# ... 上传 dist
+# ... 上传 dist，rsync 排除 data
 ```
 
 ---
