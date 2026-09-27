@@ -14,7 +14,7 @@ import { StudyResources } from '@/sections/StudyResources';
 import { TripSchedule } from '@/sections/TripSchedule';
 
 function App() {
-  const { path, exam, navigate } = useRoute();
+  const { path, learn, exam, navigate } = useRoute();
 
   const {
     txType,
@@ -107,7 +107,7 @@ function App() {
         </main>
       </div>
 
-      {path === ROUTES.learn && <StudyResources exam={exam} navigate={navigate} />}
+      {path === ROUTES.learn && <StudyResources section={learn} exam={exam} navigate={navigate} />}
     </div>
   );
 }

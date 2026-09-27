@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, FileText, Pause, Play } from 'lucide-react';
+import { ArrowLeft, BookOpenText, FileText, Headphones, Pause, Play } from 'lucide-react';
+import { DICTATION_TERM, PRIMARY_RESOURCE_GROUPS } from '@/data/primary-english';
 import {
   EXAM_SETS,
   STUDY_CONTACT,
@@ -9,15 +10,83 @@ import {
   findExamSet,
 } from '@/data/study-resources';
 import { listZipAudio, readZipAudio, type ZipAudio } from '@/lib/zip-audio';
-import { ROUTES } from '@/lib/routes';
+import { LEARN_ROUTES, ROUTES, examUrl, type LearnSection } from '@/lib/routes';
 import { ExamPdf } from '@/sections/ExamPdf';
+import { PrimaryEnglish } from '@/sections/PrimaryEnglish';
 
-function ExamList({ navigate }: { navigate: (to: string) => void }) {
+const primaryResourceCount = PRIMARY_RESOURCE_GROUPS.reduce((sum, group) => sum + group.items.length, 0);
+
+const SECTIONS = [
+  {
+    path: LEARN_ROUTES.ielts,
+    icon: Headphones,
+    title: '雅思真题',
+    description: '剑桥雅思 4–21，每套听力音频和真题 PDF 放在一起。',
+    meta: `共 ${EXAM_SETS.length} 套`,
+  },
+  {
+    path: LEARN_ROUTES.primary,
+    icon: BookOpenText,
+    title: '小学英语',
+    description: '学校默书，加上自然拼读、绘本阅读等免费英语资源。',
+    meta: `${DICTATION_TERM.dictations.length ? `默书 ${DICTATION_TERM.dictations.length} 次` : '默书待导入'} · ${primaryResourceCount} 个资源`,
+  },
+] as const;
+
+function LearnHub({ navigate }: { navigate: (to: string) => void }) {
   return (
     <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
       <p className="text-sm font-medium text-[#1E40AF]">英语</p>
       <h1 className="mt-2 text-2xl font-bold tracking-tight text-[#0F172A] sm:text-3xl">
         学习资源
+      </h1>
+      <p className="mt-2 text-sm leading-relaxed text-[#64748B]">
+        雅思备考和孩子的小学英语，分成两个板块。
+      </p>
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {SECTIONS.map((section) => {
+          const Icon = section.icon;
+          return (
+            <a
+              key={section.path}
+              href={section.path}
+              onClick={(event) => {
+                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+                event.preventDefault();
+                navigate(section.path);
+              }}
+              className="group flex h-full flex-col rounded-2xl bg-white p-5 shadow-[0_8px_28px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_36px_rgba(15,23,42,0.1)]"
+            >
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#EFF6FF] text-[#1E40AF]">
+                <Icon className="h-5 w-5" />
+              </span>
+              <span className="mt-4 text-lg font-semibold text-[#0F172A]">{section.title}</span>
+              <span className="mt-1.5 flex-1 text-sm leading-relaxed text-[#64748B]">{section.description}</span>
+              <span className="mt-4 flex items-center justify-between text-xs">
+                <span className="text-[#94A3B8]">{section.meta}</span>
+                <span className="font-medium text-[#1E40AF]">进入</span>
+              </span>
+            </a>
+          );
+        })}
+      </div>
+    </main>
+  );
+}
+
+function ExamList({ navigate }: { navigate: (to: string) => void }) {
+  return (
+    <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
+      <button
+        type="button"
+        onClick={() => navigate(ROUTES.learn)}
+        className="inline-flex items-center gap-1 text-sm text-[#64748B] hover:text-[#0F172A]"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        学习资源
+      </button>
+      <h1 className="mt-4 text-2xl font-bold tracking-tight text-[#0F172A] sm:text-3xl">
+        雅思真题
       </h1>
       <p className="mt-2 text-sm leading-relaxed text-[#64748B]">
         剑桥雅思 4–21。每套真题单独打开，听力音频和 PDF 放在一起。
@@ -26,11 +95,11 @@ function ExamList({ navigate }: { navigate: (to: string) => void }) {
         {EXAM_SETS.map((exam) => (
           <li key={exam.book}>
             <a
-              href={`/learn/${exam.book}`}
+              href={examUrl(exam.book)}
               onClick={(event) => {
                 if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
                 event.preventDefault();
-                navigate(`/learn/${exam.book}`);
+                navigate(examUrl(exam.book));
               }}
               className="flex items-center justify-between gap-4 rounded-xl bg-white px-4 py-3 shadow-[0_4px_16px_rgba(15,23,42,0.04)] transition hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)]"
             >
@@ -159,7 +228,7 @@ function ExamDetail({
     return (
       <main className="mx-auto max-w-3xl px-4 py-8">
         <p className="text-sm text-[#64748B]">没有这一套真题。</p>
-        <button type="button" className="mt-4 text-sm text-[#1E40AF]" onClick={() => navigate(ROUTES.learn)}>
+        <button type="button" className="mt-4 text-sm text-[#1E40AF]" onClick={() => navigate(LEARN_ROUTES.ielts)}>
           返回列表
         </button>
       </main>
@@ -170,7 +239,7 @@ function ExamDetail({
     <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
       <button
         type="button"
-        onClick={() => navigate(ROUTES.learn)}
+        onClick={() => navigate(LEARN_ROUTES.ielts)}
         className="inline-flex items-center gap-1 text-sm text-[#64748B] hover:text-[#0F172A]"
       >
         <ArrowLeft className="h-4 w-4" />
@@ -241,12 +310,18 @@ function ExamDetail({
 }
 
 export function StudyResources({
+  section,
   exam,
   navigate,
 }: {
+  section: LearnSection | null;
   exam: number | null;
   navigate: (to: string) => void;
 }) {
-  if (exam == null) return <ExamList navigate={navigate} />;
-  return <ExamDetail key={exam} book={exam} navigate={navigate} />;
+  if (section === 'primary') return <PrimaryEnglish navigate={navigate} />;
+  if (section === 'ielts') {
+    if (exam == null) return <ExamList navigate={navigate} />;
+    return <ExamDetail key={exam} book={exam} navigate={navigate} />;
+  }
+  return <LearnHub navigate={navigate} />;
 }
