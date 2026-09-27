@@ -56,5 +56,5 @@ export function useRoute() {
     window.scrollTo(0, 0);
   }, []);
 
-  return { path: route.path, exam: route.exam, navigate };
+  return { path: route.path, learn: route.learn, exam: route.exam, navigate };
 }

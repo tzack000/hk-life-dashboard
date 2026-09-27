@@ -10,8 +10,10 @@
 | `/family` | 家庭日程 | 学校、培训班、其它事项；优先读日程 API |
 | `/trip` | 近期行程 | 仓库内静态行程（当前为 2026 冲绳与宫古岛） |
 | `/property` | 房产看板 | 多区域租赁成交，数据每日从中原地产爬取 |
-| `/learn` | 学习资源 | 剑桥雅思 4–21 套题列表 |
-| `/learn/4` … `/learn/21` | 某一套真题 | 页内播放听力，下方显示对应 PDF |
+| `/learn` | 学习资源 | 入口页：雅思真题、小学英语两个子板块 |
+| `/learn/ielts` | 雅思真题 | 剑桥雅思 4–21 套题列表 |
+| `/learn/ielts/4` … `/learn/ielts/21` | 某一套真题 | 页内播放听力，下方显示对应 PDF；旧地址 `/learn/4` … `/learn/21` 自动改写到这里 |
+| `/learn/primary` | 小学英语 | P.2 上学期默书（2026–27）听写文档与录音，加免费少儿英语资源链接 |
 
 未知路径会回到首页。导航顺序为：首页、家庭日程、近期行程、房产看板、学习资源。
 
@@ -27,7 +29,8 @@
 │  /family        家庭日程  → GET /api/schedule/events         │
 │  /trip          近期行程  → 前端静态数据                      │
 │  /property      房产看板  → fetch /data/transactions.json    │
-│  /learn/:n      学习资源  → /cdn-audio/...（听力 zip / PDF） │
+│  /learn         学习资源  → 雅思 /learn/ielts/:n、小学英语   │
+│                 雅思听力 zip / PDF → /cdn-audio/...          │
 └────────────────────────┬─────────────────────────────────────┘
                          │ HTTP/HTTPS
                          ▼
@@ -37,7 +40,7 @@
 │  Nginx ─ 静态托管 + 反向代理                                  │
 │    ├── /              → SPA（try_files → index.html）        │
 │    ├── /assets/       → JS / CSS / pdf.js worker（.mjs）     │
-│    ├── /data/         → transactions.json                    │
+│    ├── /data/         → transactions.json、primary-english/  │
 │    ├── /api/track     → 127.0.0.1:8901  PV/UV 统计          │
 │    ├── /api/stats     → 127.0.0.1:8901  需 Basic Auth       │
 │    ├── /api/schedule/ → 127.0.0.1:8902  家庭日程 CRUD       │
@@ -55,7 +58,7 @@
 │  $WEB_DIR/                                                   │
 │    ├── index.html / assets / covers / dragon-back.jpg        │
 │    ├── admin.html                                            │
-│    └── data/transactions.json                                │
+│    └── data/transactions.json、primary-english/（听写材料） │
 │                                                              │
 │  定时任务: 0 2 * * *  爬虫 → SQLite → 导出 JSON              │
 │  系统服务: kai-tak-analytics.service / kai-tak-schedule.service │
@@ -76,7 +79,7 @@ Cron (02:00)
 
 - **家庭日程**：生产环境读 `/api/schedule`；写操作需请求头 `X-API-Key`（`.env` 的 `SCHEDULE_API_KEY`）。前端拉不到数据时降级到 `src/data/family-events.ts`。
 - **近期行程**：`src/data/trips/` 中的 TypeScript 模块，不走后端。
-- **学习资源**：套题目录在 `src/data/study-resources.ts`，音频 zip 与 PDF 经 `/cdn-audio` 代理到 frostyrhymes CDN。仓库不存放原文件。
+- **学习资源**：雅思套题目录在 `src/data/study-resources.ts`，音频 zip 与 PDF 经 `/cdn-audio` 代理到 frostyrhymes CDN，仓库不存放原文件；套题编号由这份目录决定，加一套只改数据。小学英语的听写文档和录音不入库，放在服务器 `$DATA_DIR/primary-english/`，由 `index.json` 列出，用 `scripts/publish_primary_dictation.py` 上传；资源链接在 `src/data/primary-english.ts`。
 
 ### 关键技术细节
 
@@ -146,15 +149,19 @@ hk-life-dashboard/
 │   │   ├── TripSchedule.tsx         # 近期行程
 │   │   ├── Header.tsx               # 房产看板筛选
 │   │   ├── StatsOverview.tsx / RentChart.tsx / RentTrendChart.tsx / TransactionTable.tsx
-│   │   ├── StudyResources.tsx       # 学习资源列表与套题页
+│   │   ├── StudyResources.tsx       # 学习资源入口、雅思列表与套题页
+│   │   ├── PrimaryEnglish.tsx       # 小学英语：听写文档、录音与资源链接
 │   │   └── ExamPdf.tsx              # pdf.js 阅读器
 │   ├── data/
 │   │   ├── estates.ts / mock-transactions.ts
 │   │   ├── family-events.ts         # 日程 API 失败时的降级数据
 │   │   ├── trips/okinawa-2026.ts
-│   │   └── study-resources.ts       # 雅思 4–21 资源路径
+│   │   ├── study-resources.ts       # 雅思 4–21 资源路径
+│   │   └── primary-english.ts       # 听写清单类型与资源链接
 │   ├── types/
 │   └── components/ui/
+├── scripts/
+│   └── publish_primary_dictation.py # 上传小学英语听写材料
 ├── scraper/
 │   ├── scrape_centanet.py
 │   ├── analytics_server.py
@@ -234,6 +241,17 @@ ssh $SERVER_USER@$SERVER_HOST \
 > ⚠️ rsync 必须带 `--chmod`，否则目录缺执行权限，Nginx 返回 403。必须 `--exclude data`，以免删掉服务器上的 `transactions.json`。
 
 部署后如果学习资源 PDF 打不开，检查 Nginx 是否把 `.mjs` 当作 `application/javascript`，以及是否存在 `/cdn-audio/` 代理。
+
+### 小学英语听写材料
+
+在存有材料的电脑上运行（服务器信息取自项目 `.env`）：
+
+```bash
+python3 scripts/publish_primary_dictation.py "~/Downloads/P2 Dictation" --dry-run   # 先看清单
+python3 scripts/publish_primary_dictation.py "~/Downloads/P2 Dictation"             # 上传
+```
+
+PDF、图片算作练习文档，mp3 / m4a / aac / wav / ogg 算作录音，其它格式跳过（Word 请先导出为 PDF）。服务器 `$DATA_DIR/primary-english/` 与文件夹保持一致并生成 `index.json`，前端无需重新部署。材料公开可访问，上传前确认没有孩子姓名、班级、学号。
 
 ### 爬虫部署
 

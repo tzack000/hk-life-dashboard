@@ -34,7 +34,7 @@ const ENTRIES = [
     path: ROUTES.learn,
     category: '英语',
     title: '学习资源',
-    description: '剑桥雅思 4–21 听力音频与真题 PDF',
+    description: '雅思真题 · 小学英语',
     image: '/covers/study.jpg',
     imageAlt: '戴着耳机看书的插画',
   },
