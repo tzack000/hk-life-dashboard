@@ -1,33 +1,38 @@
-export type DictationWord = {
-  en: string;
-  zh?: string;
-};
-
-export type Dictation = {
-  /** 第几次默书 */
-  no: number;
-  /** YYYY-MM-DD */
-  date?: string;
-  unit?: string;
-  words: DictationWord[];
-  sentences?: string[];
-};
-
-export type DictationTerm = {
-  title: string;
-  pendingNote: string;
-  dictations: Dictation[];
-};
+export const DICTATION_TITLE = 'P.2 上学期默书（2026–27）';
 
 /**
- * 学校发的默书表。只写单词和句子，不写孩子姓名、班级、学号。
- * 例：{ no: 1, date: '2026-09-18', unit: 'Unit 1 My School', words: [{ en: 'classroom', zh: '课室' }], sentences: ['This is my classroom.'] }
+ * 听写材料不入库，由 scripts/publish_primary_dictation.py 上传到服务器 $DATA_DIR/primary-english/。
+ * 站点公开，材料里不要出现孩子姓名、班级、学号。
  */
-export const DICTATION_TERM: DictationTerm = {
-  title: 'P.2 上学期默书（2026–27）',
-  pendingNote: '默书表待导入',
-  dictations: [],
+const DICTATION_BASE = '/data/primary-english/';
+export const DICTATION_MANIFEST_URL = `${DICTATION_BASE}index.json`;
+
+export type DictationFile = {
+  title: string;
+  /** 相对 /data/primary-english/ 的路径 */
+  file: string;
+  size?: number;
 };
+
+export type DictationManifest = {
+  updated?: string;
+  documents: DictationFile[];
+  recordings: DictationFile[];
+};
+
+export function dictationFileUrl(file: string) {
+  return DICTATION_BASE + file.split('/').map(encodeURIComponent).join('/');
+}
+
+export function isImageFile(file: string) {
+  return /\.(jpe?g|png|webp)$/i.test(file);
+}
+
+export function formatFileSize(size?: number) {
+  if (!size) return '';
+  if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
 
 export type PrimaryResource = {
   name: string;

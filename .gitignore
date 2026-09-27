@@ -9,3 +9,6 @@ dist/
 # 隐私内容：学校原始通知与个人手机截图，勿提交到公开仓库
 references/
 issues/
+
+# 本地预览用的听写材料（scripts/publish_primary_dictation.py --stage-only），勿提交
+public/data/

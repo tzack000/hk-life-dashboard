@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, BookOpenText, FileText, Headphones, Pause, Play } from 'lucide-react';
-import { DICTATION_TERM, PRIMARY_RESOURCE_GROUPS } from '@/data/primary-english';
+import { PRIMARY_RESOURCE_GROUPS, type DictationManifest } from '@/data/primary-english';
+import { useDictationMaterials } from '@/hooks/use-dictation-materials';
 import {
   EXAM_SETS,
   STUDY_CONTACT,
@@ -28,12 +29,28 @@ const SECTIONS = [
     path: LEARN_ROUTES.primary,
     icon: BookOpenText,
     title: '小学英语',
-    description: '学校默书，加上自然拼读、绘本阅读等免费英语资源。',
-    meta: `${DICTATION_TERM.dictations.length ? `默书 ${DICTATION_TERM.dictations.length} 次` : '默书待导入'} · ${primaryResourceCount} 个资源`,
+    description: '学校听写文档和录音，加上自然拼读、绘本阅读等免费英语资源。',
+    meta: null,
   },
 ] as const;
 
+function primaryMeta(manifest: DictationManifest | null | undefined) {
+  const dictation =
+    manifest === undefined
+      ? '听写材料读取中'
+      : manifest === null
+        ? '听写材料待上传'
+        : [
+            manifest.documents.length ? `${manifest.documents.length} 份文档` : '',
+            manifest.recordings.length ? `${manifest.recordings.length} 段录音` : '',
+          ]
+            .filter(Boolean)
+            .join('、');
+  return `${dictation} · ${primaryResourceCount} 个资源`;
+}
+
 function LearnHub({ navigate }: { navigate: (to: string) => void }) {
+  const dictation = useDictationMaterials();
   return (
     <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
       <p className="text-sm font-medium text-[#1E40AF]">英语</p>
@@ -63,7 +80,7 @@ function LearnHub({ navigate }: { navigate: (to: string) => void }) {
               <span className="mt-4 text-lg font-semibold text-[#0F172A]">{section.title}</span>
               <span className="mt-1.5 flex-1 text-sm leading-relaxed text-[#64748B]">{section.description}</span>
               <span className="mt-4 flex items-center justify-between text-xs">
-                <span className="text-[#94A3B8]">{section.meta}</span>
+                <span className="text-[#94A3B8]">{section.meta ?? primaryMeta(dictation)}</span>
                 <span className="font-medium text-[#1E40AF]">进入</span>
               </span>
             </a>
