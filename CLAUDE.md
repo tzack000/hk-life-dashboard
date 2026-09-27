@@ -20,7 +20,9 @@ History API 路由（`src/hooks/use-route.ts`、`src/lib/routes.ts`），不用 
 | `/family` | 家庭日程 `FamilySchedule.tsx` | `/api/schedule`，失败降级 `src/data/family-events.ts` |
 | `/trip` | 近期行程 `TripSchedule.tsx` | `src/data/trips/*.ts` 静态模块 |
 | `/property` | 房产看板 | `/data/transactions.json`，失败降级 mock（中原地产 hk.centanet.com） |
-| `/learn`、`/learn/4`–`/learn/21` | 学习资源 `StudyResources.tsx` | `src/data/study-resources.ts`，文件经 `/cdn-audio` 代理 |
+| `/learn` | 学习资源入口 `StudyResources.tsx` | 静态，列出雅思真题、小学英语 |
+| `/learn/ielts`、`/learn/ielts/4`–`/learn/ielts/21` | 雅思真题 `StudyResources.tsx` | `src/data/study-resources.ts`，文件经 `/cdn-audio` 代理；旧地址 `/learn/N` 改写到 `/learn/ielts/N` |
+| `/learn/primary` | 小学英语 `PrimaryEnglish.tsx` | `src/data/primary-english.ts`（默书表 + 资源链接） |
 
 - 导航顺序：首页、家庭日程、近期行程、房产看板、学习资源；未知路径回到首页
 - 家庭日程、近期行程、房产看板保持挂载（`hidden` 切换），筛选状态不丢失
@@ -140,7 +142,8 @@ AI:  已归档至 openspec/changes/archive/2026-06-01-add-tuen-mun/
 ## 其它常见改动
 
 - **更新行程**：改 `src/data/trips/<trip>.ts`（类型见 `src/types/trip.ts`），同时按需用日程 API 同步家庭日程中的行程事件；订单上的个人电话、邮箱不写进公开数据
-- **新增一套学习资源**：在 `src/data/study-resources.ts` 加条目，并放宽 `src/lib/routes.ts` 中 4–21 的编号范围
+- **新增一套雅思真题**：在 `src/data/study-resources.ts` 的 `EXAM_SETS` 加条目即可，`src/lib/routes.ts` 按 `findExamSet` 校验编号，不再写死 4–21
+- **导入默书表**：在 `src/data/primary-english.ts` 的 `DICTATION_TERM.dictations` 按次加 `{ no, date?, unit?, words: [{ en, zh? }], sentences? }`；只写单词和句子，不写孩子姓名、班级、学号
 - **新增子页面**：`src/lib/routes.ts` 加路径 → `SiteNav.tsx` 加导航 → `HomePage.tsx` 加卡片 → `App.tsx` 挂载，并同步 `openspec/specs/site-home`
 
 ## 常用命令

@@ -10,8 +10,10 @@
 | `/family` | 家庭日程 | 学校、培训班、其它事项；优先读日程 API |
 | `/trip` | 近期行程 | 仓库内静态行程（当前为 2026 冲绳与宫古岛） |
 | `/property` | 房产看板 | 多区域租赁成交，数据每日从中原地产爬取 |
-| `/learn` | 学习资源 | 剑桥雅思 4–21 套题列表 |
-| `/learn/4` … `/learn/21` | 某一套真题 | 页内播放听力，下方显示对应 PDF |
+| `/learn` | 学习资源 | 入口页：雅思真题、小学英语两个子板块 |
+| `/learn/ielts` | 雅思真题 | 剑桥雅思 4–21 套题列表 |
+| `/learn/ielts/4` … `/learn/ielts/21` | 某一套真题 | 页内播放听力，下方显示对应 PDF；旧地址 `/learn/4` … `/learn/21` 自动改写到这里 |
+| `/learn/primary` | 小学英语 | P.2 上学期默书（2026–27）与免费少儿英语资源链接 |
 
 未知路径会回到首页。导航顺序为：首页、家庭日程、近期行程、房产看板、学习资源。
 
@@ -27,7 +29,8 @@
 │  /family        家庭日程  → GET /api/schedule/events         │
 │  /trip          近期行程  → 前端静态数据                      │
 │  /property      房产看板  → fetch /data/transactions.json    │
-│  /learn/:n      学习资源  → /cdn-audio/...（听力 zip / PDF） │
+│  /learn         学习资源  → 雅思 /learn/ielts/:n、小学英语   │
+│                 雅思听力 zip / PDF → /cdn-audio/...          │
 └────────────────────────┬─────────────────────────────────────┘
                          │ HTTP/HTTPS
                          ▼
@@ -76,7 +79,7 @@ Cron (02:00)
 
 - **家庭日程**：生产环境读 `/api/schedule`；写操作需请求头 `X-API-Key`（`.env` 的 `SCHEDULE_API_KEY`）。前端拉不到数据时降级到 `src/data/family-events.ts`。
 - **近期行程**：`src/data/trips/` 中的 TypeScript 模块，不走后端。
-- **学习资源**：套题目录在 `src/data/study-resources.ts`，音频 zip 与 PDF 经 `/cdn-audio` 代理到 frostyrhymes CDN。仓库不存放原文件。
+- **学习资源**：雅思套题目录在 `src/data/study-resources.ts`，音频 zip 与 PDF 经 `/cdn-audio` 代理到 frostyrhymes CDN，仓库不存放原文件；套题编号由这份目录决定，加一套只改数据。小学英语的默书表与资源链接在 `src/data/primary-english.ts`，默书只写单词和句子，不写孩子姓名、班级。
 
 ### 关键技术细节
 
@@ -146,13 +149,15 @@ hk-life-dashboard/
 │   │   ├── TripSchedule.tsx         # 近期行程
 │   │   ├── Header.tsx               # 房产看板筛选
 │   │   ├── StatsOverview.tsx / RentChart.tsx / RentTrendChart.tsx / TransactionTable.tsx
-│   │   ├── StudyResources.tsx       # 学习资源列表与套题页
+│   │   ├── StudyResources.tsx       # 学习资源入口、雅思列表与套题页
+│   │   ├── PrimaryEnglish.tsx       # 小学英语：默书与资源链接
 │   │   └── ExamPdf.tsx              # pdf.js 阅读器
 │   ├── data/
 │   │   ├── estates.ts / mock-transactions.ts
 │   │   ├── family-events.ts         # 日程 API 失败时的降级数据
 │   │   ├── trips/okinawa-2026.ts
-│   │   └── study-resources.ts       # 雅思 4–21 资源路径
+│   │   ├── study-resources.ts       # 雅思 4–21 资源路径
+│   │   └── primary-english.ts       # 小学英语默书表与资源链接
 │   ├── types/
 │   └── components/ui/
 ├── scraper/
