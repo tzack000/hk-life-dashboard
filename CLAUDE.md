@@ -22,7 +22,7 @@ History API 路由（`src/hooks/use-route.ts`、`src/lib/routes.ts`），不用 
 | `/property` | 房产看板 | `/data/transactions.json`，失败降级 mock（中原地产 hk.centanet.com） |
 | `/learn` | 学习资源入口 `StudyResources.tsx` | 静态，列出雅思真题、小学英语 |
 | `/learn/ielts`、`/learn/ielts/4`–`/learn/ielts/21` | 雅思真题 `StudyResources.tsx` | `src/data/study-resources.ts`，文件经 `/cdn-audio` 代理；旧地址 `/learn/N` 改写到 `/learn/ielts/N` |
-| `/learn/primary` | 小学英语 `PrimaryEnglish.tsx` | `src/data/primary-english.ts`（默书表 + 资源链接） |
+| `/learn/primary` | 小学英语 `PrimaryEnglish.tsx` | 听写文档与录音：服务器 `/data/primary-english/index.json`（不入库）；资源链接：`src/data/primary-english.ts` |
 
 - 导航顺序：首页、家庭日程、近期行程、房产看板、学习资源；未知路径回到首页
 - 家庭日程、近期行程、房产看板保持挂载（`hidden` 切换），筛选状态不丢失
@@ -143,7 +143,7 @@ AI:  已归档至 openspec/changes/archive/2026-06-01-add-tuen-mun/
 
 - **更新行程**：改 `src/data/trips/<trip>.ts`（类型见 `src/types/trip.ts`），同时按需用日程 API 同步家庭日程中的行程事件；订单上的个人电话、邮箱不写进公开数据
 - **新增一套雅思真题**：在 `src/data/study-resources.ts` 的 `EXAM_SETS` 加条目即可，`src/lib/routes.ts` 按 `findExamSet` 校验编号，不再写死 4–21
-- **导入默书表**：在 `src/data/primary-english.ts` 的 `DICTATION_TERM.dictations` 按次加 `{ no, date?, unit?, words: [{ en, zh? }], sentences? }`；只写单词和句子，不写孩子姓名、班级、学号
+- **更新听写材料**：在存有材料的电脑上运行 `python3 scripts/publish_primary_dictation.py <文件夹>`（先加 `--dry-run` 看清单）。文档收 PDF / 图片，录音收 mp3 / m4a / aac / wav / ogg；脚本按 `.env` 同步到 `$DATA_DIR/primary-english/` 并生成 `index.json`，服务器上多余的旧材料会被删除，无需重新部署前端。材料公开可访问，上传前确认没有孩子姓名、班级、学号。本地预览用 `--stage-only public/data/primary-english`（已忽略，勿提交）
 - **新增子页面**：`src/lib/routes.ts` 加路径 → `SiteNav.tsx` 加导航 → `HomePage.tsx` 加卡片 → `App.tsx` 挂载，并同步 `openspec/specs/site-home`
 
 ## 常用命令
