@@ -26,7 +26,7 @@ const ENTRIES = [
     path: ROUTES.property,
     category: '房产',
     title: '房产看板',
-    description: '各区域租赁与购房成交，按月份和小区查看',
+    description: '各区域租赁与购房成交，以及启德 30 分钟地铁圈的新盘',
     image: '/covers/property.jpg',
     imageAlt: '海旁住宅楼的插画',
   },

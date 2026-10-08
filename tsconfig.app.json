@@ -16,6 +16,7 @@
     },
     /* Bundler mode */
     "moduleResolution": "bundler",
+    "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": false,
     "moduleDetection": "force",
@@ -30,5 +31,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src"]
+  "include": ["src", "scraper/kai-tak-mtr-30.json"]
 }
