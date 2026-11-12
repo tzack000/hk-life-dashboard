@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, BookOpenText, FileText, Headphones, Pause, Play } from 'lucide-react';
+import { ArrowLeft, BookOpenText, Castle, FileText, Headphones, Pause, Play } from 'lucide-react';
 import { PRIMARY_RESOURCE_GROUPS, type DictationManifest } from '@/data/primary-english';
 import { useDictationMaterials } from '@/hooks/use-dictation-materials';
 import {
@@ -17,6 +17,8 @@ import { PrimaryEnglish } from '@/sections/PrimaryEnglish';
 
 const primaryResourceCount = PRIMARY_RESOURCE_GROUPS.reduce((sum, group) => sum + group.items.length, 0);
 
+const VORUSH_HREF = '/vorush/';
+
 const SECTIONS = [
   {
     path: LEARN_ROUTES.ielts,
@@ -24,6 +26,7 @@ const SECTIONS = [
     title: '雅思真题',
     description: '剑桥雅思 4–21，每套听力音频和真题 PDF 放在一起。',
     meta: `共 ${EXAM_SETS.length} 套`,
+    jump: false,
   },
   {
     path: LEARN_ROUTES.primary,
@@ -31,6 +34,15 @@ const SECTIONS = [
     title: '小学英语',
     description: '学校听写文档和录音，加上自然拼读、绘本阅读等免费英语资源。',
     meta: null,
+    jump: false,
+  },
+  {
+    path: VORUSH_HREF,
+    icon: Castle,
+    title: 'VoRush',
+    description: '英语单词塔防：先学会单词，再用金币建塔守住哨站。',
+    meta: 'iPad 横屏',
+    jump: true,
   },
 ] as const;
 
@@ -58,7 +70,7 @@ function LearnHub({ navigate }: { navigate: (to: string) => void }) {
         学习资源
       </h1>
       <p className="mt-2 text-sm leading-relaxed text-[#64748B]">
-        雅思备考和孩子的小学英语，分成两个板块。
+        雅思备考、孩子的小学英语，以及单词塔防。
       </p>
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
         {SECTIONS.map((section) => {
@@ -68,6 +80,7 @@ function LearnHub({ navigate }: { navigate: (to: string) => void }) {
               key={section.path}
               href={section.path}
               onClick={(event) => {
+                if (section.jump) return;
                 if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
                 event.preventDefault();
                 navigate(section.path);
@@ -81,7 +94,7 @@ function LearnHub({ navigate }: { navigate: (to: string) => void }) {
               <span className="mt-1.5 flex-1 text-sm leading-relaxed text-[#64748B]">{section.description}</span>
               <span className="mt-4 flex items-center justify-between text-xs">
                 <span className="text-[#94A3B8]">{section.meta ?? primaryMeta(dictation)}</span>
-                <span className="font-medium text-[#1E40AF]">进入</span>
+                <span className="font-medium text-[#1E40AF]">{section.jump ? '打开' : '进入'}</span>
               </span>
             </a>
           );

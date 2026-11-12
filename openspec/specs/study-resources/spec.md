@@ -1,20 +1,24 @@
 # 规范：学习资源（study-resources）
 
-> 由 `add-learn-sections` 归档建立，`add-primary-dictation-materials` 更新。描述学习资源入口页、雅思真题与小学英语两个子板块。
+> 由 `add-learn-sections` 归档建立，`add-primary-dictation-materials` 更新。描述学习资源入口页、雅思真题、小学英语，以及单词塔防跳转。
 
 ## Purpose
 
-学习资源按用途分成雅思真题和小学英语两个板块：雅思在线听音频看 PDF，小学英语放学校的听写文档和录音，以及免费的少儿英语网站。
+学习资源按用途分成雅思真题、小学英语和单词塔防：雅思在线听音频看 PDF，小学英语放学校的听写文档和录音以及免费的少儿英语网站，单词塔防跳转到同站的 VoRush。
 
 ## Requirements
 
 ### Requirement: 学习资源入口页
-系统 SHALL 在 `/learn` 展示学习资源入口页，列出「雅思真题」（`/learn/ielts`）与「小学英语」（`/learn/primary`）两个子板块，每个子板块有标题和一句说明。在任一 `/learn` 开头的地址下，顶栏「学习资源」SHALL 处于选中态。
+系统 SHALL 在 `/learn` 展示学习资源入口页，列出「雅思真题」（`/learn/ielts`）、「小学英语」（`/learn/primary`）与「VoRush」（`/vorush/`）。前两个是站内子板块，VoRush 是整页跳转到同站静态游戏。每个入口有标题和一句说明。在任一 `/learn` 开头的地址下，顶栏「学习资源」SHALL 处于选中态。
 
 #### Scenario: 打开入口页
 - **WHEN** 用户访问 `/learn`
-- **THEN** 页面展示「雅思真题」和「小学英语」两个入口
+- **THEN** 页面展示「雅思真题」、「小学英语」和「VoRush」三个入口
 - **AND** 顶栏「学习资源」处于选中态
+
+#### Scenario: 打开单词塔防
+- **WHEN** 用户在入口页点击「VoRush」
+- **THEN** 浏览器打开 `/vorush/`，展示单词塔防游戏
 
 #### Scenario: 进入子板块
 - **WHEN** 用户在入口页点击「小学英语」
