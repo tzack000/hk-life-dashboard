@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { useRentalData } from '@/hooks/use-rental-data';
+import { useNewLaunches } from '@/hooks/use-new-launches';
 import { useRoute } from '@/hooks/use-route';
 import { ROUTES } from '@/lib/routes';
 import { cn } from '@/lib/utils';
@@ -10,11 +12,14 @@ import { StatsOverview } from '@/sections/StatsOverview';
 import { RentChart } from '@/sections/RentChart';
 import { RentTrendChart } from '@/sections/RentTrendChart';
 import { TransactionTable } from '@/sections/TransactionTable';
+import { NewLaunches } from '@/sections/NewLaunches';
 import { StudyResources } from '@/sections/StudyResources';
 import { TripSchedule } from '@/sections/TripSchedule';
+import type { PropertyView } from '@/types/new-launch';
 
 function App() {
-  const { path, exam, navigate } = useRoute();
+  const { path, learn, exam, navigate } = useRoute();
+  const [boardView, setBoardView] = useState<PropertyView>('rental');
 
   const {
     txType,
@@ -40,7 +45,24 @@ function App() {
     lastUpdated,
   } = useRentalData();
 
-  const sourceText = dataSource === 'server'
+  const {
+    statusFilter,
+    setStatusFilter,
+    launches,
+    catchmentCount,
+    eventsByLaunch,
+    dataSource: launchDataSource,
+    lastUpdated: launchLastUpdated,
+    sourceName: launchSourceName,
+  } = useNewLaunches();
+
+  const sourceText = boardView === 'launch'
+    ? (launchDataSource === 'server'
+      ? `数据来源：${launchSourceName} · 最后更新：${launchLastUpdated ? new Date(launchLastUpdated).toLocaleString('zh-CN') : '未知'}`
+      : launchDataSource === 'loading'
+        ? '数据加载中...'
+        : '数据仅供参考，不构成任何投资建议 · 数据来源为模拟生成')
+    : dataSource === 'server'
     ? `数据来源：中原地产 · 最后更新：${lastUpdated ? new Date(lastUpdated).toLocaleString('zh-CN') : '未知'}`
     : dataSource === 'loading'
       ? '数据加载中...'
@@ -55,7 +77,8 @@ function App() {
       {/* 三个子页面保持挂载，来回切换不重置筛选 */}
       <div className={cn(path === ROUTES.property ? 'block' : 'hidden')}>
         <Header
-          txType={txType}
+          view={boardView}
+          setView={setBoardView}
           setTxType={setTxType}
           selectedDistrict={selectedDistrict}
           setSelectedDistrict={setSelectedDistrict}
@@ -69,9 +92,23 @@ function App() {
           availableMonths={availableMonths}
           dataSource={dataSource}
           lastUpdated={lastUpdated}
+          launchStatus={statusFilter}
+          setLaunchStatus={setStatusFilter}
+          launchDataSource={launchDataSource}
+          launchLastUpdated={launchLastUpdated}
+          launchSourceName={launchSourceName}
         />
 
         <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+          {boardView === 'launch' ? (
+            <NewLaunches
+              launches={launches}
+              catchmentCount={catchmentCount}
+              statusFilter={statusFilter}
+              eventsByLaunch={eventsByLaunch}
+            />
+          ) : (
+            <>
           <StatsOverview txType={txType} stats={stats} monthLabel={monthLabel} />
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <RentChart txType={txType} estateAvgPrices={estateAvgPrices} monthLabel={monthLabel} />
@@ -84,6 +121,8 @@ function App() {
             />
           </div>
           <TransactionTable txType={txType} transactions={filteredTransactions} monthLabel={monthLabel} />
+            </>
+          )}
         </main>
 
         <footer className="border-t bg-white/60 backdrop-blur-sm">
@@ -107,7 +146,7 @@ function App() {
         </main>
       </div>
 
-      {path === ROUTES.learn && <StudyResources exam={exam} navigate={navigate} />}
+      {path === ROUTES.learn && <StudyResources section={learn} exam={exam} navigate={navigate} />}
     </div>
   );
 }

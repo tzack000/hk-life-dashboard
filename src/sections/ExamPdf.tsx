@@ -68,18 +68,19 @@ function PdfPage({ pdf, pageNumber }: { pdf: PDFDocumentProxy; pageNumber: numbe
   );
 }
 
-export function ExamPdf({ url }: { url: string }) {
+export function ExamPdf({ url, label = '真题' }: { url: string; label?: string }) {
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
     let doc: PDFDocumentProxy | null = null;
+    const failed = `${label} PDF 加载失败`;
     setPdf(null);
     setError('');
     (async () => {
       const response = await fetch(url);
-      if (!response.ok) throw new Error('真题 PDF 加载失败');
+      if (!response.ok) throw new Error(failed);
       const data = await response.arrayBuffer();
       doc = await getDocument({ data }).promise;
       if (cancelled) {
@@ -88,18 +89,18 @@ export function ExamPdf({ url }: { url: string }) {
       }
       setPdf(doc);
     })().catch((reason: unknown) => {
-      if (!cancelled) setError(reason instanceof Error ? reason.message : '真题 PDF 加载失败');
+      if (!cancelled) setError(reason instanceof Error ? reason.message : failed);
     });
     return () => {
       cancelled = true;
       void doc?.destroy();
     };
-  }, [url]);
+  }, [url, label]);
 
   return (
     <div className="h-[calc(100vh-16rem)] min-h-[36rem] overflow-auto bg-[#E2E8F0] px-3 py-4">
       {error && <p className="text-sm text-[#B45309]">{error}</p>}
-      {!pdf && !error && <p className="text-sm text-[#64748B]">正在打开真题…</p>}
+      {!pdf && !error && <p className="text-sm text-[#64748B]">正在打开{label}…</p>}
       {pdf &&
         Array.from({ length: pdf.numPages }, (_, index) => (
           <PdfPage key={`${url}-${index + 1}`} pdf={pdf} pageNumber={index + 1} />

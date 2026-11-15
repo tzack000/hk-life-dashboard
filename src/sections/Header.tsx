@@ -9,9 +9,12 @@ import {
 import { districts } from '@/data/estates';
 import { allLayouts } from '@/hooks/use-rental-data';
 import type { TxType, District } from '@/types/rental';
+import type { LaunchStatusFilter, PropertyView } from '@/types/new-launch';
+import { LAUNCH_STATUSES } from '@/hooks/use-new-launches';
 
 interface HeaderProps {
-  txType: TxType;
+  view: PropertyView;
+  setView: (view: PropertyView) => void;
   setTxType: (t: TxType) => void;
   selectedDistrict: District;
   setSelectedDistrict: (d: District) => void;
@@ -25,10 +28,16 @@ interface HeaderProps {
   availableMonths: { year: number; month: number; label: string }[];
   dataSource: 'loading' | 'server' | 'mock';
   lastUpdated?: string;
+  launchStatus: LaunchStatusFilter;
+  setLaunchStatus: (status: LaunchStatusFilter) => void;
+  launchDataSource: 'loading' | 'server' | 'mock';
+  launchLastUpdated?: string;
+  launchSourceName: string;
 }
 
 export function Header({
-  txType,
+  view,
+  setView,
   setTxType,
   selectedDistrict,
   setSelectedDistrict,
@@ -42,8 +51,22 @@ export function Header({
   availableMonths,
   dataSource,
   lastUpdated,
+  launchStatus,
+  setLaunchStatus,
+  launchDataSource,
+  launchLastUpdated,
+  launchSourceName,
 }: HeaderProps) {
   const monthValue = `${selectedMonth.year}-${selectedMonth.month}`;
+  const showingLaunch = view === 'launch';
+  const activeSource = showingLaunch ? launchDataSource : dataSource;
+  const activeUpdated = showingLaunch ? launchLastUpdated : lastUpdated;
+  const activeSourceName = showingLaunch ? launchSourceName : '中原地产';
+
+  const selectView = (next: PropertyView) => {
+    setView(next);
+    if (next === 'rental' || next === 'sale') setTxType(next);
+  };
 
   return (
     <header className="sticky top-0 z-50 border-b bg-white/80 backdrop-blur-md">
@@ -61,16 +84,16 @@ export function Header({
           </div>
 
           <div className="text-right text-[10px] leading-snug text-[#94A3B8] sm:text-xs">
-            {dataSource === 'server' ? (
+            {activeSource === 'server' ? (
               <>
-                <span>数据来源：中原地产</span>
-                {lastUpdated && (
+                <span>数据来源：{activeSourceName}</span>
+                {activeUpdated && (
                   <span className="block sm:inline sm:before:content-['_·_']">
-                    {new Date(lastUpdated).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}更新
+                    {new Date(activeUpdated).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}更新
                   </span>
                 )}
               </>
-            ) : dataSource === 'loading' ? (
+            ) : activeSource === 'loading' ? (
               <span>数据加载中...</span>
             ) : (
               <span>数据来源：模拟生成（仅供参考）</span>
@@ -79,31 +102,47 @@ export function Header({
         </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-2 sm:mt-3 sm:gap-3">
-          {/* 租房/购房选项卡 */}
           <div className="inline-flex h-8 items-center rounded-lg bg-[#F1F5F9] p-0.5 sm:h-9">
-            <button
-              onClick={() => setTxType('rental')}
-              className={`rounded-md px-3 py-1 text-xs font-medium transition-all sm:px-4 sm:text-sm ${
-                txType === 'rental'
-                  ? 'bg-white text-[#0F172A] shadow-sm'
-                  : 'text-[#94A3B8] hover:text-[#475569]'
-              }`}
-            >
-              租房
-            </button>
-            <button
-              onClick={() => setTxType('sale')}
-              className={`rounded-md px-3 py-1 text-xs font-medium transition-all sm:px-4 sm:text-sm ${
-                txType === 'sale'
-                  ? 'bg-white text-[#0F172A] shadow-sm'
-                  : 'text-[#94A3B8] hover:text-[#475569]'
-              }`}
-            >
-              购房
-            </button>
+            {([
+              ['rental', '租房'],
+              ['sale', '购房'],
+              ['launch', '新盘'],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => selectView(value)}
+                className={`rounded-md px-3 py-1 text-xs font-medium transition-all sm:px-4 sm:text-sm ${
+                  view === value
+                    ? 'bg-white text-[#0F172A] shadow-sm'
+                    : 'text-[#94A3B8] hover:text-[#475569]'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
           <div className="hidden h-5 w-px bg-[#E2E8F0] sm:block" />
+
+          {showingLaunch ? (
+            <>
+              <span className="inline-flex h-8 items-center rounded-lg bg-[#EFF6FF] px-3 text-xs font-medium text-[#1E40AF] sm:h-9 sm:text-sm">
+                启德地铁 30 分钟内
+              </span>
+              <Select value={launchStatus} onValueChange={(value) => setLaunchStatus(value as LaunchStatusFilter)}>
+                <SelectTrigger className="h-8 w-[120px] text-xs sm:h-9 sm:w-[140px] sm:text-sm">
+                  <SelectValue placeholder="销售状态" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="全部">全部状态</SelectItem>
+                  {LAUNCH_STATUSES.map((status) => (
+                    <SelectItem key={status} value={status}>{status}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          ) : (
+            <>
 
           {/* 区域选择 */}
           <Select value={selectedDistrict} onValueChange={(v) => setSelectedDistrict(v as District)}>
@@ -162,6 +201,8 @@ export function Header({
               ))}
             </SelectContent>
           </Select>
+            </>
+          )}
         </div>
       </div>
     </header>
